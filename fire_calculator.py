@@ -1,0 +1,317 @@
+#!/usr/bin/env python3
+"""
+FIRE Calculator (v1)
+=====================
+
+A simple command-line calculator that estimates how long it will take to
+reach Financial Independence (FI), based on the FIRE (Financial
+Independence, Retire Early) movement's standard math:
+
+    FIRE number      = annual_expenses / withdrawal_rate
+    months to FI      = the point at which your invested assets,
+                         growing with compound returns and regular monthly
+                         contributions, reach the FIRE number.
+
+All amounts are assumed to be in "today's money" (real terms) and in a
+single, consistent currency of the user's choice -- the currency itself
+does not matter for the math, as long as everything is entered in the
+same one.
+
+Default assumptions (overridable by the user):
+------------------------------------------------
+- Nominal annual investment return: 8.0%
+    A blended, conservative approximation between the long-run historical
+    nominal return of the S&P 500 (~10%) and a globally diversified index
+    such as the FTSE All-World (~7-8% since inception). Many popular FIRE
+    calculators use a similarly conservative default (commonly 7%).
+- Annual inflation rate: 3.0%
+    Long-run historical average inflation rate commonly used as a default
+    in FIRE / retirement calculators.
+- Safe withdrawal rate (SWR): 4.0%
+    The widely cited "4% rule", based on the Trinity Study, which found a
+    4% withdrawal rate sustainable over a 30-year retirement (with a
+    50/50 stock/bond portfolio). A reasonable adjustable range is roughly
+    3-5%.
+
+Note on the real return calculation:
+    real_return = nominal_return - inflation
+    This is the same simplified approach used by most popular FIRE
+    calculators (rather than the more precise Fisher equation). It is
+    accurate enough for long-term planning purposes.
+
+This is intentionally a simple, first version. Planned future
+improvements (v2+) include: variable/glide-path returns, current age and
+target retirement age, Coast FIRE, salary growth, taxes, one-off cash
+flows (inheritance, big purchases), and Monte Carlo simulation.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+from dataclasses import dataclass
+
+# ---------------------------------------------------------------------------
+# Default assumptions (see module docstring for sources/reasoning)
+# ---------------------------------------------------------------------------
+
+DEFAULT_NOMINAL_RETURN_PCT = 8.0
+DEFAULT_INFLATION_PCT = 3.0
+DEFAULT_WITHDRAWAL_RATE_PCT = 4.0
+
+# Recommended (not enforced) sane range for the withdrawal rate.
+WITHDRAWAL_RATE_MIN_PCT = 3.0
+WITHDRAWAL_RATE_MAX_PCT = 5.0
+
+
+@dataclass
+class FireInputs:
+    """All user-provided inputs for the FIRE calculation."""
+
+    current_net_worth: float       # Current invested assets / starting balance
+    annual_income: float           # Net (take-home) annual income
+    monthly_savings: float         # Amount invested every month
+    nominal_return_pct: float = DEFAULT_NOMINAL_RETURN_PCT
+    inflation_pct: float = DEFAULT_INFLATION_PCT
+    withdrawal_rate_pct: float = DEFAULT_WITHDRAWAL_RATE_PCT
+
+
+@dataclass
+class FireResult:
+    """Output of the FIRE calculation."""
+
+    annual_expenses: float
+    fire_number: float
+    real_return_pct: float
+    months_to_fire: float | None   # None if the target is unreachable
+    years_part: int = 0
+    months_part: int = 0
+    fire_date: _dt.date | None = None
+
+
+# ---------------------------------------------------------------------------
+# Core calculation (kept free of any input()/print() so it can be reused
+# later -- e.g. from a web UI, tests, or other tools in this repo).
+# ---------------------------------------------------------------------------
+
+def calculate_fire(inputs: FireInputs) -> FireResult:
+    """Compute the FIRE number and the time needed to reach it.
+
+    Raises:
+        ValueError: if monthly savings are so high that they would imply
+            zero or negative living expenses (i.e. monthly_savings * 12
+            >= annual_income).
+    """
+    annual_savings = inputs.monthly_savings * 12
+    annual_expenses = inputs.annual_income - annual_savings
+
+    if annual_expenses <= 0:
+        raise ValueError(
+            "Monthly savings imply zero or negative annual expenses "
+            "(monthly_savings * 12 >= annual_income). Please check your "
+            "income and savings amount."
+        )
+
+    withdrawal_rate = inputs.withdrawal_rate_pct / 100
+    fire_number = annual_expenses / withdrawal_rate
+
+    # Simplified real return: nominal minus inflation (see module docstring).
+    real_return_pct = inputs.nominal_return_pct - inputs.inflation_pct
+    annual_real_return = real_return_pct / 100
+
+    months_to_fire = _months_to_reach_target(
+        starting_balance=inputs.current_net_worth,
+        monthly_contribution=inputs.monthly_savings,
+        annual_return=annual_real_return,
+        target=fire_number,
+    )
+
+    years_part, months_part = (0, 0)
+    fire_date = None
+    if months_to_fire is not None:
+        years_part, months_part = divmod(round(months_to_fire), 12)
+        fire_date = _add_months(_dt.date.today(), round(months_to_fire))
+
+    return FireResult(
+        annual_expenses=annual_expenses,
+        fire_number=fire_number,
+        real_return_pct=real_return_pct,
+        months_to_fire=months_to_fire,
+        years_part=years_part,
+        months_part=months_part,
+        fire_date=fire_date,
+    )
+
+
+def _months_to_reach_target(
+    starting_balance: float,
+    monthly_contribution: float,
+    annual_return: float,
+    target: float,
+) -> float | None:
+    """Solve for the number of months needed to reach `target`, given a
+    starting balance, a fixed monthly contribution, and a constant annual
+    rate of return (compounded monthly).
+
+    Returns None if the target can never be reached (no growth and
+    contributions are not enough -- or balance is shrinking).
+    """
+    if starting_balance >= target:
+        return 0.0
+
+    # Convert annual rate to an equivalent monthly compounding rate.
+    monthly_rate = (1 + annual_return) ** (1 / 12) - 1
+
+    if abs(monthly_rate) < 1e-12:
+        # No real growth: purely linear accumulation from contributions.
+        if monthly_contribution <= 0:
+            return None
+        return (target - starting_balance) / monthly_contribution
+
+    # Closed-form solution for n in:
+    # target = balance*(1+r)^n + contribution * (((1+r)^n - 1) / r)
+    numerator = target * monthly_rate + monthly_contribution
+    denominator = starting_balance * monthly_rate + monthly_contribution
+
+    if denominator <= 0 or numerator <= 0:
+        return None
+
+    ratio = numerator / denominator
+    if ratio <= 1:
+        # Already there or contributions/return are negative relative to target.
+        return 0.0
+
+    import math
+    n_months = math.log(ratio) / math.log(1 + monthly_rate)
+    return n_months
+
+
+def _add_months(start: _dt.date, months: int) -> _dt.date:
+    """Add `months` calendar months to a date (day is clamped to 28)."""
+    month_index = start.month - 1 + months
+    year = start.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(start.day, 28)
+    return _dt.date(year, month, day)
+
+
+# ---------------------------------------------------------------------------
+# Simple interactive command-line interface
+# ---------------------------------------------------------------------------
+
+def _prompt_float(
+    label: str,
+    default: float | None = None,
+    min_value: float | None = None,
+    max_value: float | None = None,
+) -> float:
+    """Ask the user for a number, with an optional default value and an
+    optional (advisory, non-blocking outside hard bounds) valid range."""
+    while True:
+        suffix = f" [default: {default}]" if default is not None else ""
+        raw = input(f"{label}{suffix}: ").strip().replace(",", ".")
+
+        if raw == "" and default is not None:
+            return default
+
+        try:
+            value = float(raw)
+        except ValueError:
+            print("  Please enter a valid number.")
+            continue
+
+        if min_value is not None and value < min_value:
+            print(f"  Value must be at least {min_value}.")
+            continue
+        if max_value is not None and value > max_value:
+            print(f"  Value must be at most {max_value}.")
+            continue
+
+        return value
+
+
+def run_cli() -> None:
+    print("=" * 60)
+    print("FIRE Calculator - Financial Independence Time Estimator")
+    print("=" * 60)
+    print(
+        "Enter all amounts in the same currency. All values represent "
+        "today's money (real terms).\n"
+    )
+
+    current_net_worth = _prompt_float(
+        "Current net worth / invested assets", min_value=0
+    )
+    annual_income = _prompt_float(
+        "Annual net (take-home) income", min_value=0.01
+    )
+    monthly_savings = _prompt_float(
+        "Monthly savings (amount invested each month)", min_value=0
+    )
+
+    print(
+        "\nThe next values have sensible defaults based on long-term "
+        "historical averages. Press Enter to accept the default, or type "
+        "your own value.\n"
+    )
+
+    nominal_return_pct = _prompt_float(
+        "Expected nominal annual investment return (%)",
+        default=DEFAULT_NOMINAL_RETURN_PCT,
+        min_value=0,
+        max_value=30,
+    )
+    inflation_pct = _prompt_float(
+        "Expected annual inflation rate (%)",
+        default=DEFAULT_INFLATION_PCT,
+        min_value=0,
+        max_value=20,
+    )
+    withdrawal_rate_pct = _prompt_float(
+        f"Safe withdrawal rate (%) [recommended range "
+        f"{WITHDRAWAL_RATE_MIN_PCT}-{WITHDRAWAL_RATE_MAX_PCT}]",
+        default=DEFAULT_WITHDRAWAL_RATE_PCT,
+        min_value=0.5,
+        max_value=10,
+    )
+
+    inputs = FireInputs(
+        current_net_worth=current_net_worth,
+        annual_income=annual_income,
+        monthly_savings=monthly_savings,
+        nominal_return_pct=nominal_return_pct,
+        inflation_pct=inflation_pct,
+        withdrawal_rate_pct=withdrawal_rate_pct,
+    )
+
+    try:
+        result = calculate_fire(inputs)
+    except ValueError as exc:
+        print(f"\nError: {exc}")
+        return
+
+    print("\n" + "-" * 60)
+    print("RESULTS")
+    print("-" * 60)
+    print(f"Estimated annual expenses:     {result.annual_expenses:,.2f}")
+    print(f"Real (inflation-adjusted) return: {result.real_return_pct:.2f}%")
+    print(f"FIRE number (target net worth): {result.fire_number:,.2f}")
+
+    if result.months_to_fire is None:
+        print(
+            "\nWith these inputs, financial independence is not reachable "
+            "(savings/return are too low relative to the target). Try "
+            "increasing monthly savings or expected return, or lowering "
+            "expenses / the withdrawal rate target."
+        )
+        return
+
+    print(
+        f"\nTime to financial independence: "
+        f"{result.years_part} years and {result.months_part} months"
+    )
+    if result.fire_date:
+        print(f"Estimated date: {result.fire_date.strftime('%B %Y')}")
+
+
+if __name__ == "__main__":
+    run_cli()
