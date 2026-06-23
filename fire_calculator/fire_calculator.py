@@ -39,16 +39,27 @@ Note on the real return calculation:
     calculators (rather than the more precise Fisher equation). It is
     accurate enough for long-term planning purposes.
 
-This is intentionally a simple, first version. Planned future
-improvements (v2+) include: variable/glide-path returns, current age and
-target retirement age, Coast FIRE, salary growth, taxes, one-off cash
-flows (inheritance, big purchases), and Monte Carlo simulation.
+This is intentionally a simple, evolving tool. Already supported:
+loading a personal "savings diary" CSV (columns: `date`, `net_worth`;
+dates in YYYY-MM-DD format) to show real recorded history alongside the
+projection -- this is entirely optional and the tool works the same as
+before if you don't have one.
+
+Planned future improvements include: variable/glide-path returns,
+current age and target retirement age, Coast FIRE, salary growth, taxes,
+one-off cash flows (inheritance, big purchases), and Monte Carlo
+simulation.
+
+After computing the result, this script opens a chart (via matplotlib)
+showing the projected net worth over time alongside the FIRE target as a
+reference line. Requires matplotlib (`pip install matplotlib`); the core
+calculation itself has no external dependencies.
 """
 
 from __future__ import annotations
 
 import datetime as _dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
 # Default assumptions (see module docstring for sources/reasoning)
@@ -73,6 +84,10 @@ class FireInputs:
     nominal_return_pct: float = DEFAULT_NOMINAL_RETURN_PCT
     inflation_pct: float = DEFAULT_INFLATION_PCT
     withdrawal_rate_pct: float = DEFAULT_WITHDRAWAL_RATE_PCT
+    # The date `current_net_worth` is as of. Defaults to today, but if
+    # current_net_worth comes from a savings-diary CSV, this should be the
+    # date of that entry instead, so projections start from the right point.
+    as_of_date: _dt.date = field(default_factory=_dt.date.today)
 
 
 @dataclass
@@ -129,7 +144,7 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
     fire_date = None
     if months_to_fire is not None:
         years_part, months_part = divmod(round(months_to_fire), 12)
-        fire_date = _add_months(_dt.date.today(), round(months_to_fire))
+        fire_date = _add_months(inputs.as_of_date, round(months_to_fire))
 
     return FireResult(
         annual_expenses=annual_expenses,
@@ -194,6 +209,173 @@ def _add_months(start: _dt.date, months: int) -> _dt.date:
     return _dt.date(year, month, day)
 
 
+def _balance_at_month(
+    month: int,
+    starting_balance: float,
+    monthly_contribution: float,
+    monthly_rate: float,
+) -> float:
+    """Projected balance after `month` months of compounding plus a fixed
+    monthly contribution. Shared by the time-to-FIRE solver's curve and the
+    chart in `plot_projection`."""
+    if abs(monthly_rate) < 1e-12:
+        return starting_balance + monthly_contribution * month
+    growth = (1 + monthly_rate) ** month
+    return starting_balance * growth + monthly_contribution * ((growth - 1) / monthly_rate)
+
+
+# ---------------------------------------------------------------------------
+# Savings diary: load a personal history of (date, net_worth) entries
+# ---------------------------------------------------------------------------
+
+def load_savings_history(path: str) -> list[tuple[_dt.date, float]]:
+    """Load a savings-diary CSV with `date` and `net_worth` columns
+    (dates in YYYY-MM-DD format).
+
+    Rows that can't be parsed are skipped (with a warning printed to the
+    console) rather than aborting the whole load. The returned list is
+    sorted by date, ascending.
+
+    Raises:
+        FileNotFoundError: if `path` does not exist.
+        ValueError: if the file doesn't have the expected columns.
+    """
+    import csv
+
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            raise ValueError("The CSV file appears to be empty.")
+
+        normalized = {name.strip().lower(): name for name in reader.fieldnames}
+        if "date" not in normalized or "net_worth" not in normalized:
+            raise ValueError(
+                "Expected a CSV with 'date' and 'net_worth' columns "
+                f"(found: {reader.fieldnames})."
+            )
+        date_key = normalized["date"]
+        net_worth_key = normalized["net_worth"]
+
+        entries: list[tuple[_dt.date, float]] = []
+        for line_number, row in enumerate(reader, start=2):  # header = line 1
+            raw_date = (row.get(date_key) or "").strip()
+            raw_value = (row.get(net_worth_key) or "").strip()
+            try:
+                entry_date = _dt.date.fromisoformat(raw_date)
+                entry_value = float(raw_value)
+            except (ValueError, TypeError):
+                print(
+                    f"  Skipping line {line_number}: could not parse "
+                    f"date='{raw_date}' net_worth='{raw_value}'."
+                )
+                continue
+            entries.append((entry_date, entry_value))
+
+    entries.sort(key=lambda pair: pair[0])
+    return entries
+
+
+# ---------------------------------------------------------------------------
+# Chart: projected net worth vs. the FIRE target
+# ---------------------------------------------------------------------------
+
+def plot_projection(
+    inputs: "FireInputs",
+    result: "FireResult",
+    history: list[tuple[_dt.date, float]] | None = None,
+) -> None:
+    """Open a window showing projected net worth over time (a smooth curve
+    starting from `inputs.current_net_worth` as of `inputs.as_of_date`,
+    growing with compounding + monthly contributions), together with a
+    horizontal reference line for the FIRE target.
+
+    If `history` is provided (a list of (date, net_worth) entries from a
+    savings diary), it is plotted as well, so real recorded history and
+    the future projection appear side by side on the same chart.
+
+    Requires matplotlib (imported lazily so the rest of the module has no
+    hard dependency on it).
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print(
+            "\n(Skipping chart: matplotlib is not installed. "
+            "Install it with 'pip install matplotlib' to see the graph.)"
+        )
+        return
+
+    monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
+
+    if result.months_to_fire is not None:
+        # A little extra room past the FIRE date so the crossing is visible.
+        horizon_months = max(round(result.months_to_fire * 1.15), round(result.months_to_fire) + 6)
+    else:
+        horizon_months = 40 * 12  # Default 40-year horizon if unreachable.
+
+    anchor_date = inputs.as_of_date
+    months = list(range(0, horizon_months + 1))
+    dates = [_add_months(anchor_date, m) for m in months]
+    balances = [
+        _balance_at_month(m, inputs.current_net_worth, inputs.monthly_savings, monthly_rate)
+        for m in months
+    ]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    if history:
+        hist_dates = [d for d, _ in history]
+        hist_values = [v for _, v in history]
+        ax.plot(
+            hist_dates,
+            hist_values,
+            color="#16a34a",
+            marker="o",
+            markersize=4,
+            linewidth=2,
+            label="Recorded history",
+        )
+
+    ax.plot(dates, balances, color="#2563eb", linewidth=2, label="Projected net worth")
+    ax.axhline(
+        result.fire_number,
+        color="red",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"FIRE target: {result.fire_number:,.0f}",
+    )
+
+    if result.months_to_fire is not None and result.fire_date is not None:
+        ax.scatter([result.fire_date], [result.fire_number], color="red", zorder=5)
+        ax.annotate(
+            f"{result.fire_date.strftime('%B %Y')}\n({result.years_part}y {result.months_part}m)",
+            xy=(result.fire_date, result.fire_number),
+            xytext=(10, 12),
+            textcoords="offset points",
+            fontsize=9,
+            color="red",
+        )
+    else:
+        ax.text(
+            0.02,
+            0.95,
+            "Target not reached within the shown horizon at these assumptions.",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="red",
+            va="top",
+        )
+
+    ax.set_title("Net Worth vs. FIRE Target")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Net worth")
+    ax.legend(loc="lower right")
+    ax.grid(True, alpha=0.3)
+    fig.autofmt_xdate()
+    plt.tight_layout()
+    plt.show()
+
+
 # ---------------------------------------------------------------------------
 # Simple interactive command-line interface
 # ---------------------------------------------------------------------------
@@ -238,9 +420,44 @@ def run_cli() -> None:
         "today's money (real terms).\n"
     )
 
-    current_net_worth = _prompt_float(
-        "Current net worth / invested assets", min_value=0
+    print(
+        "If you keep a savings diary (a CSV file with 'date' and "
+        "'net_worth' columns), I can use it to show your real history "
+        "alongside the projection."
     )
+    csv_path = input(
+        "Path to your savings diary CSV (press Enter to skip): "
+    ).strip()
+
+    history: list[tuple[_dt.date, float]] | None = None
+    as_of_date = _dt.date.today()
+    current_net_worth: float | None = None
+
+    if csv_path:
+        try:
+            history = load_savings_history(csv_path)
+        except FileNotFoundError:
+            print(f"  Could not find a file at '{csv_path}'. ")
+            history = None
+        except ValueError as exc:
+            print(f"  {exc}")
+            history = None
+
+        if history:
+            as_of_date, current_net_worth = history[-1]
+            print(
+                f"  Loaded {len(history)} entries. Using your most recent "
+                f"recorded net worth: {current_net_worth:,.2f} as of "
+                f"{as_of_date.isoformat()}.\n"
+            )
+        else:
+            print("  No valid entries found -- I'll ask for it manually instead.\n")
+
+    if current_net_worth is None:
+        current_net_worth = _prompt_float(
+            "Current net worth / invested assets", min_value=0
+        )
+
     annual_income = _prompt_float(
         "Annual net (take-home) income", min_value=0.01
     )
@@ -281,6 +498,7 @@ def run_cli() -> None:
         nominal_return_pct=nominal_return_pct,
         inflation_pct=inflation_pct,
         withdrawal_rate_pct=withdrawal_rate_pct,
+        as_of_date=as_of_date,
     )
 
     try:
@@ -303,6 +521,8 @@ def run_cli() -> None:
             "increasing monthly savings or expected return, or lowering "
             "expenses / the withdrawal rate target."
         )
+        print("Opening a chart to visualize the projection anyway...")
+        plot_projection(inputs, result, history=history)
         return
 
     print(
@@ -311,6 +531,9 @@ def run_cli() -> None:
     )
     if result.fire_date:
         print(f"Estimated date: {result.fire_date.strftime('%B %Y')}")
+
+    print("\nOpening a chart of your projected net worth...")
+    plot_projection(inputs, result, history=history)
 
 
 if __name__ == "__main__":
