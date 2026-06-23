@@ -1,0 +1,29 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Jupyter (if you ever use notebooks for exploration) ---
+.ipynb_checkpoints/
+
+# --- Personal / real data ---
+# Convention for this repo: any file ending in "_private.csv" is assumed
+# to contain your real personal data (e.g. an actual savings diary) and
+# should never be committed. Example/template data files should instead
+# be named "*_example.csv" and ARE meant to be tracked.
+*_private.csv
+*_private.json
