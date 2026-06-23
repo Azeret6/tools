@@ -28,12 +28,40 @@ terms).
 
 | Input | Description |
 |---|---|
-| Current net worth | Current invested assets / starting balance |
+| Savings diary CSV *(optional)* | A file with `date` and `net_worth` columns (see [Savings diary](#savings-diary-optional) below). If provided, its most recent entry is used as your current net worth automatically. |
+| Current net worth | Current invested assets / starting balance — only asked if no diary was loaded |
 | Annual income | Net (take-home) annual income |
 | Monthly savings | Amount you invest every month |
 | Nominal annual return *(optional)* | Expected investment return, before inflation. Default: **8%** |
 | Inflation rate *(optional)* | Expected long-term inflation. Default: **3%** |
 | Withdrawal rate *(optional)* | The "safe withdrawal rate" used to size your FIRE number. Default: **4%** (recommended range: 3–5%) |
+
+## Savings diary (optional)
+
+If you keep a personal log of your net worth over time, save it as a CSV
+with exactly these two columns:
+
+```csv
+date,net_worth
+2025-01-01,15000
+2025-04-01,17200
+2025-07-01,19800
+```
+
+- `date` must be in `YYYY-MM-DD` format.
+- Rows that can't be parsed are skipped (with a warning), not fatal.
+- The calculator uses the **most recent** entry as your current net
+  worth and as the anchor date for the projection — so you don't need to
+  re-enter it manually.
+- The chart will show your real recorded history (green) alongside the
+  future projection (blue).
+
+A sample file, `savings_log_example.csv`, is included as a template.
+
+**Privacy tip:** if you save your *real* diary, name it with a
+`_private.csv` suffix (e.g. `savings_log_private.csv`) — this repo's
+`.gitignore` is already set up to keep such files out of version
+control, while `*_example.csv` files stay tracked.
 
 ## Output
 
@@ -43,7 +71,8 @@ terms).
 - **Time to FI** — in years and months, plus an estimated calendar date
 - A **chart** (opens automatically) showing your projected net worth over
   time, with the FIRE target as a horizontal reference line and the
-  estimated crossing point marked
+  estimated crossing point marked — plus your recorded history, if a
+  savings diary was loaded
 
 ## Assumptions & default values
 
@@ -76,10 +105,12 @@ This is a first, intentionally simple version:
 
 - ~~**v1.1** — visualize projected net worth over time, with the FIRE
   target shown as a reference line.~~ ✅ Done
-- **v2** — load historical net-worth entries (a personal "savings
-  diary", stored as CSV) and plot history alongside the projection.
+- ~~**v2** — load historical net-worth entries (a personal "savings
+  diary", stored as CSV) and plot history alongside the projection.~~ ✅ Done
 - **v3** — web interface with adjustable sliders for the default
   assumptions.
+- Further ahead: current age / target retirement age, Coast FIRE, salary
+  growth, taxes, one-off cash flows, Monte Carlo simulation.
 
 ## Requirements
 
