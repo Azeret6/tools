@@ -320,11 +320,9 @@ input[type="range"]::-moz-range-thumb {
   font-variant-numeric: tabular-nums;
 }
 
-.chart {
-  display: block;
-  width: 100%;
-  border-radius: 3px;
-  margin-top: 0.5rem;
+.chart-wrap {
+  margin-top: 1rem;
+  padding: 0 1.75rem 1.5rem;
 }
 
 .error-banner {
@@ -356,4 +354,78 @@ input[type="range"]::-moz-range-thumb {
   font-size: 1.3rem;
   color: var(--ink);
   margin-bottom: 0.5rem;
+}
+
+/* ----------------------------------------------------------------
+   Checkbox (partial FIRE toggle)
+   ---------------------------------------------------------------- */
+.checkbox-group {
+  margin-bottom: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ledger);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.checkbox-label strong {
+  font-weight: 600;
+}
+
+/* ----------------------------------------------------------------
+   Reference table (savings rate -> years)
+   ---------------------------------------------------------------- */
+.panel.reference {
+  max-width: 64rem;
+  margin: 1.5rem auto 0;
+}
+
+.reference-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.reference-table th,
+.reference-table td {
+  text-align: center;
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px dashed var(--line);
+}
+
+.reference-table th {
+  color: var(--mute);
+  font-weight: 600;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.reference-table td {
+  font-weight: 600;
+  color: var(--ledger-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .reference-table {
+    font-size: 0.78rem;
+  }
+  .reference-table th,
+  .reference-table td {
+    padding: 0.4rem 0.2rem;
+  }
 }
