@@ -5,14 +5,17 @@ Raise Calculator
 Models the long-term impact of a net pay raise on your investable net
 worth, comparing three scenarios:
 
-    1. Current path     -- no raise; savings stay the same.
-    2. Raise spent       -- you get the raise, but it's absorbed into
-                            lifestyle spending; savings stay the same as
-                            scenario 1 (the two are mathematically
-                            identical -- shown side by side to make the
-                            cost of lifestyle inflation visible).
-    3. Raise invested    -- the entire raise is added to monthly
-                            savings/investments.
+    1. Current path        -- no raise; savings stay the same.
+    2. Raise kept as cash   -- you get the raise, but don't invest it. It
+                               still adds to your net worth, but it earns
+                               no investment return. Since every amount in
+                               this tool is tracked in today's money (real
+                               terms), idle cash also loses purchasing
+                               power to inflation over time -- it doesn't
+                               just sit still in real terms, it slowly
+                               shrinks.
+    3. Raise fully invested -- the entire raise is added to monthly
+                               savings/investments.
 
 All amounts should be entered as NET (take-home) figures, in the same
 currency, in today's money (real terms). Working in net, real terms
@@ -20,8 +23,7 @@ avoids having to model any country-specific tax system.
 
 Optionally, you can provide a FIRE target (via annual expenses and a
 withdrawal rate) to see how many years sooner -- if any -- investing the
-raise gets you there. Leaving this out, the tool simply compares net
-worth growth across the three scenarios over a fixed horizon.
+raise gets you there, compared to spending it or letting it sit as cash.
 
 This tool has no dependency on any other tool in this repository and can
 be copied and used entirely on its own.
@@ -38,7 +40,9 @@ fire_calculator for the underlying reasoning and sources).
 Note on the real return calculation:
     real_return = nominal_return - inflation
 This is a simplified approximation (rather than the Fisher equation),
-consistent with the rest of this repository.
+consistent with the rest of this repository. The same logic is applied to
+idle cash: its nominal return is 0%, so its real return is simply
+`-inflation` (i.e. it loses value at the inflation rate).
 
 After computing the result, this script opens a chart (via matplotlib)
 comparing net worth growth across the three scenarios. Requires
@@ -48,8 +52,8 @@ external dependencies.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
+from typing import Callable
 
 # ---------------------------------------------------------------------------
 # Default assumptions (see module docstring for sources/reasoning)
@@ -64,6 +68,9 @@ DEFAULT_PROJECTION_YEARS = 30
 WITHDRAWAL_RATE_MIN_PCT = 3.0
 WITHDRAWAL_RATE_MAX_PCT = 5.0
 
+# Cap for the numeric years-to-target search, regardless of chart horizon.
+MAX_SOLVER_YEARS = 100
+
 
 @dataclass
 class RaiseInputs:
@@ -71,7 +78,7 @@ class RaiseInputs:
 
     current_monthly_savings: float     # Amount currently invested each month
     raise_amount: float                # Net monthly raise (take-home increase)
-    current_net_worth: float = 0.0     # Starting balance, shared by all scenarios
+    current_net_worth: float = 0.0     # Starting balance; assumed invested
     nominal_return_pct: float = DEFAULT_NOMINAL_RETURN_PCT
     inflation_pct: float = DEFAULT_INFLATION_PCT
     projection_years: int = DEFAULT_PROJECTION_YEARS
@@ -89,7 +96,8 @@ class ScenarioResult:
 
     key: str                                    # Stable identifier
     label: str                                  # Human-readable name
-    monthly_savings: float
+    invested_monthly: float                     # Amount actually invested each month
+    cash_monthly: float                         # Amount kept as idle cash each month
     net_worth_by_year: list[tuple[int, float]]  # (year offset, net worth)
     years_to_target: float | None = None        # None if no target / unreachable
 
@@ -98,7 +106,8 @@ class ScenarioResult:
 class RaiseComparisonResult:
     """Output of the full scenario comparison."""
 
-    real_return_pct: float
+    real_return_pct: float       # Real return on invested money
+    cash_real_return_pct: float  # Real return on idle cash (= -inflation)
     fire_target: float | None
     horizon_years: int
     scenarios: list[ScenarioResult] = field(default_factory=list)
@@ -123,57 +132,62 @@ def calculate_raise_scenarios(inputs: RaiseInputs) -> RaiseComparisonResult:
     real_return_pct = inputs.nominal_return_pct - inputs.inflation_pct
     monthly_rate = (1 + real_return_pct / 100) ** (1 / 12) - 1
 
+    # Idle cash earns 0% nominal -- in real terms that's just -inflation.
+    cash_real_return_pct = -inputs.inflation_pct
+    cash_monthly_rate = (1 + cash_real_return_pct / 100) ** (1 / 12) - 1
+
     target = _resolve_target(inputs)
 
     baseline_savings = inputs.current_monthly_savings
     invested_savings = inputs.current_monthly_savings + inputs.raise_amount
 
-    baseline_years_to_target = (
-        _years_to_reach_target(inputs.current_net_worth, baseline_savings, monthly_rate, target)
-        if target is not None else None
-    )
-    invested_years_to_target = (
-        _years_to_reach_target(inputs.current_net_worth, invested_savings, monthly_rate, target)
-        if target is not None else None
-    )
+    def make_balance_fn(invested_monthly: float, cash_monthly: float) -> Callable[[int], float]:
+        def balance_fn(month: int) -> float:
+            invested = _balance_at_month(
+                month, inputs.current_net_worth, invested_monthly, monthly_rate
+            )
+            cash = (
+                _balance_at_month(month, 0.0, cash_monthly, cash_monthly_rate)
+                if cash_monthly else 0.0
+            )
+            return invested + cash
+        return balance_fn
 
-    horizon_years = _resolve_horizon(
-        inputs.projection_years, baseline_years_to_target, invested_years_to_target
-    )
+    scenario_defs = [
+        ("current_path", "Current path (no raise)", baseline_savings, 0.0),
+        ("raise_uninvested", "Raise kept as cash (not invested)", baseline_savings, inputs.raise_amount),
+        ("raise_invested", "Raise fully invested", invested_savings, 0.0),
+    ]
 
-    baseline_series = _project_net_worth(
-        inputs.current_net_worth, baseline_savings, monthly_rate, horizon_years
-    )
-    invested_series = _project_net_worth(
-        inputs.current_net_worth, invested_savings, monthly_rate, horizon_years
-    )
+    balance_fns = {
+        key: make_balance_fn(invested_monthly, cash_monthly)
+        for key, _, invested_monthly, cash_monthly in scenario_defs
+    }
+
+    years_to_target = {
+        key: (_years_to_reach_target(fn, target) if target is not None else None)
+        for key, fn in balance_fns.items()
+    }
+
+    horizon_years = _resolve_horizon(inputs.projection_years, *years_to_target.values())
 
     scenarios = [
         ScenarioResult(
-            key="current_path",
-            label="Current path (no raise)",
-            monthly_savings=baseline_savings,
-            net_worth_by_year=baseline_series,
-            years_to_target=baseline_years_to_target,
-        ),
-        ScenarioResult(
-            key="raise_spent",
-            label="Raise spent (lifestyle inflation)",
-            monthly_savings=baseline_savings,
-            net_worth_by_year=baseline_series,
-            years_to_target=baseline_years_to_target,
-        ),
-        ScenarioResult(
-            key="raise_invested",
-            label="Raise fully invested",
-            monthly_savings=invested_savings,
-            net_worth_by_year=invested_series,
-            years_to_target=invested_years_to_target,
-        ),
+            key=key,
+            label=label,
+            invested_monthly=invested_monthly,
+            cash_monthly=cash_monthly,
+            net_worth_by_year=[
+                (year, balance_fns[key](year * 12)) for year in range(horizon_years + 1)
+            ],
+            years_to_target=years_to_target[key],
+        )
+        for key, label, invested_monthly, cash_monthly in scenario_defs
     ]
 
     return RaiseComparisonResult(
         real_return_pct=real_return_pct,
+        cash_real_return_pct=cash_real_return_pct,
         fire_target=target,
         horizon_years=horizon_years,
         scenarios=scenarios,
@@ -197,22 +211,8 @@ def _resolve_horizon(projection_years: int, *years_to_target: float | None) -> i
     if not reachable:
         return projection_years
     needed = max(reachable)
+    import math
     return max(projection_years, min(math.ceil(needed) + 2, 80))
-
-
-def _project_net_worth(
-    starting_balance: float,
-    monthly_contribution: float,
-    monthly_rate: float,
-    horizon_years: int,
-) -> list[tuple[int, float]]:
-    """Year-by-year projected net worth, from year 0 (today) to
-    `horizon_years`, given a constant monthly contribution and a constant
-    monthly rate of return (compounded monthly)."""
-    return [
-        (year, _balance_at_month(year * 12, starting_balance, monthly_contribution, monthly_rate))
-        for year in range(horizon_years + 1)
-    ]
 
 
 def _balance_at_month(
@@ -222,7 +222,8 @@ def _balance_at_month(
     monthly_rate: float,
 ) -> float:
     """Projected balance after `month` months of compounding plus a fixed
-    monthly contribution."""
+    monthly contribution, at a constant monthly rate of return. Works for
+    positive, negative, or zero rates."""
     if abs(monthly_rate) < 1e-12:
         return starting_balance + monthly_contribution * month
     growth = (1 + monthly_rate) ** month
@@ -230,42 +231,38 @@ def _balance_at_month(
 
 
 def _years_to_reach_target(
-    starting_balance: float,
-    monthly_contribution: float,
-    monthly_rate: float,
+    balance_fn: Callable[[int], float],
     target: float,
+    max_years: int = MAX_SOLVER_YEARS,
 ) -> float | None:
-    """Solve for the number of years needed to reach `target`, given a
-    starting balance, a fixed monthly contribution, and a constant monthly
-    rate of return (compounded monthly).
+    """Find the number of years needed for `balance_fn(month)` to reach
+    `target`, via binary search over months. Works for any scenario whose
+    balance is non-decreasing in time -- including ones that combine an
+    invested component and a separately-rated idle-cash component, which
+    don't have a simple closed-form solution.
 
-    Returns None if the target can never be reached (no growth and
-    contributions are not enough -- or balance is shrinking).
+    Returns None if the target isn't reached within `max_years`.
     """
-    if starting_balance >= target:
+    if balance_fn(0) >= target:
         return 0.0
 
-    if abs(monthly_rate) < 1e-12:
-        # No real growth: purely linear accumulation from contributions.
-        if monthly_contribution <= 0:
-            return None
-        return (target - starting_balance) / monthly_contribution / 12
-
-    # Closed-form solution for n in:
-    # target = balance*(1+r)^n + contribution * (((1+r)^n - 1) / r)
-    numerator = target * monthly_rate + monthly_contribution
-    denominator = starting_balance * monthly_rate + monthly_contribution
-
-    if denominator <= 0 or numerator <= 0:
+    max_months = max_years * 12
+    if balance_fn(max_months) < target:
         return None
 
-    ratio = numerator / denominator
-    if ratio <= 1:
-        # Already there, or contributions/return are negative relative to target.
-        return 0.0
+    lo, hi = 0, max_months
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if balance_fn(mid) >= target:
+            hi = mid
+        else:
+            lo = mid
 
-    n_months = math.log(ratio) / math.log(1 + monthly_rate)
-    return n_months / 12
+    # Linear interpolation between the two bracketing months for a smoother
+    # fractional-year estimate.
+    balance_lo, balance_hi = balance_fn(lo), balance_fn(hi)
+    frac = 0.0 if balance_hi == balance_lo else (target - balance_lo) / (balance_hi - balance_lo)
+    return (lo + frac) / 12
 
 
 # ---------------------------------------------------------------------------
@@ -284,37 +281,24 @@ def build_comparison_figure(result: RaiseComparisonResult):
     """
     import matplotlib.pyplot as plt
 
-    # Color/style per scenario. Scenarios 1 and 2 ("current path" / "raise
-    # spent") share an identical trajectory by construction, so they're
-    # drawn once below, with a combined legend label, rather than as two
-    # overlapping lines.
     style = {
-        "current_path": ("#475569", "-"),    # slate
-        "raise_spent": ("#475569", "-"),
-        "raise_invested": ("#16a34a", "-"),  # green
+        "current_path": "#475569",      # slate -- nothing changes
+        "raise_uninvested": "#d97706",  # amber -- idle cash
+        "raise_invested": "#16a34a",    # green -- growth
     }
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    plotted_series: set[int] = set()
+    finals = []
     for scenario in result.scenarios:
-        series_id = id(scenario.net_worth_by_year)
-        if series_id in plotted_series:
-            continue
-        plotted_series.add(series_id)
-
-        sharing_labels = [
-            s.label for s in result.scenarios if id(s.net_worth_by_year) == series_id
-        ]
-        color, linestyle = style.get(scenario.key, ("#2563eb", "-"))
-
+        color = style.get(scenario.key, "#2563eb")
         years = [y for y, _ in scenario.net_worth_by_year]
         values = [v for _, v in scenario.net_worth_by_year]
-        ax.plot(
-            years, values,
-            color=color, linestyle=linestyle, linewidth=2,
-            label=" / ".join(sharing_labels),
-        )
+        ax.plot(years, values, color=color, linewidth=2, label=scenario.label)
+
+        final_year, final_value = scenario.net_worth_by_year[-1]
+        ax.scatter([final_year], [final_value], color=color, zorder=5, s=20)
+        finals.append({"color": color, "x": final_year, "value": final_value})
 
         if scenario.years_to_target is not None and scenario.years_to_target <= result.horizon_years:
             ax.scatter([scenario.years_to_target], [result.fire_target], color=color, zorder=5)
@@ -336,7 +320,40 @@ def build_comparison_figure(result: RaiseComparisonResult):
             label=f"FIRE target: {result.fire_target:,.0f}",
         )
 
-    ax.set_title("Net Worth: Impact of a Raise")
+    # Label the final net worth at the end of the horizon, so scenarios can
+    # be compared on "how much" at a fixed point in time, not just on "how
+    # soon" to a target. If two or more scenarios end up close together,
+    # stack the labels vertically rather than letting them overlap.
+    y_min, y_max = ax.get_ylim()
+    min_gap = (y_max - y_min) * 0.045
+    finals.sort(key=lambda d: d["value"])
+    stacked_y: list[float] = []
+    for d in finals:
+        y = d["value"]
+        if stacked_y and y - stacked_y[-1] < min_gap:
+            y = stacked_y[-1] + min_gap
+        stacked_y.append(y)
+        d["label_y"] = y
+
+    label_x = result.horizon_years * 1.03
+    for d in finals:
+        needs_leader = abs(d["label_y"] - d["value"]) > min_gap * 0.5
+        ax.annotate(
+            f"{d['value']:,.0f}",
+            xy=(d["x"], d["value"]),
+            xytext=(label_x, d["label_y"]),
+            textcoords="data",
+            fontsize=9,
+            color=d["color"],
+            fontweight="bold",
+            va="center",
+            arrowprops=dict(arrowstyle="-", color=d["color"], alpha=0.4, lw=0.8) if needs_leader else None,
+        )
+
+    # Extra room on the right so the final-value labels aren't clipped.
+    ax.set_xlim(-0.5, result.horizon_years * 1.3)
+
+    ax.set_title(f"Net Worth: Impact of a Raise (after {result.horizon_years} years)")
     ax.set_xlabel("Years from now")
     ax.set_ylabel("Net worth")
     ax.legend(loc="lower right", fontsize=9)
@@ -498,20 +515,20 @@ def run_cli() -> None:
     print("\n" + "-" * 60)
     print("RESULTS")
     print("-" * 60)
-    print(f"Real (inflation-adjusted) return: {result.real_return_pct:.2f}%")
+    print(f"Real return on invested money: {result.real_return_pct:.2f}%")
+    print(f"Real return on idle cash:      {result.cash_real_return_pct:.2f}%")
     if result.fire_target is not None:
-        print(f"FIRE target (target net worth):   {result.fire_target:,.2f}")
+        print(f"FIRE target (target net worth): {result.fire_target:,.2f}")
     print()
 
     for scenario in result.scenarios:
         print(f"{scenario.label}:")
-        print(f"  Monthly savings:      {scenario.monthly_savings:,.2f}")
-
-        if scenario.key == "raise_spent":
+        print(f"  Invested monthly:     {scenario.invested_monthly:,.2f}")
+        if scenario.cash_monthly:
+            print(f"  Kept as cash monthly: {scenario.cash_monthly:,.2f}")
             print(
-                "  (Same trajectory as 'Current path' -- the raise is "
-                "absorbed into spending, so it doesn't change your "
-                "savings rate.)"
+                "  (This cash earns no investment return, and loses "
+                "purchasing power to inflation over time.)"
             )
 
         if scenario.years_to_target is not None:
@@ -524,17 +541,23 @@ def run_cli() -> None:
         print()
 
     if result.fire_target is not None:
-        baseline = result.scenarios[0]
-        invested = result.scenarios[2]
-        if baseline.years_to_target is not None and invested.years_to_target is not None:
-            diff_years = baseline.years_to_target - invested.years_to_target
+        by_key = {s.key: s for s in result.scenarios}
+        current = by_key["current_path"]
+        uninvested = by_key["raise_uninvested"]
+        invested = by_key["raise_invested"]
+
+        def _print_diff(label: str, slower, faster) -> None:
+            if slower.years_to_target is None or faster.years_to_target is None:
+                return
+            diff_years = slower.years_to_target - faster.years_to_target
             if diff_years > 0.05:
                 years_part = int(diff_years)
                 months_part = round((diff_years - years_part) * 12)
-                print(
-                    f"Investing the raise gets you to your FIRE target "
-                    f"{years_part}y {months_part}m sooner than the current path.\n"
-                )
+                print(f"{label}: {years_part}y {months_part}m sooner.")
+
+        _print_diff("Investing the raise vs. the current path", current, invested)
+        _print_diff("Investing the raise vs. keeping it as cash", uninvested, invested)
+        print()
 
     plot_scenarios(result)
 
