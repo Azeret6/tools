@@ -57,6 +57,29 @@
       </div>
 
       <hr class="divider">
+
+      <div class="field-group checkbox-group">
+        <label class="checkbox-label" for="partial_fire">
+          <input
+            type="checkbox" id="partial_fire" name="partial_fire"
+            {% if values.partial_fire %}checked{% endif %}>
+          Calculate <strong>partial FIRE</strong> instead
+        </label>
+        <p class="hint">
+          For a specific extra monthly amount (e.g. a pension top-up)
+          rather than full financial independence.
+        </p>
+      </div>
+
+      <div class="field-group" id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %}>
+        <label for="desired_monthly_income">Desired monthly amount <span class="optional">(today's money)</span></label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="desired_monthly_income" name="desired_monthly_income"
+          value="{{ values.desired_monthly_income }}" placeholder="e.g. 10000">
+      </div>
+
+      <hr class="divider">
       <p class="section-label">Assumptions</p>
 
       <div class="field-group slider-group">
@@ -106,7 +129,9 @@
         <div class="receipt">
 
           {% if display.reachable %}
-            <p class="result-label">Time to financial independence</p>
+            <p class="result-label">
+              {% if display.is_partial %}Time to partial financial independence{% else %}Time to financial independence{% endif %}
+            </p>
             <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
             <p class="result-sub">Estimated: {{ display.fire_date }}</p>
           {% else %}
@@ -120,22 +145,40 @@
 
           <div class="ledger-rows">
             <div class="ledger-row">
+              <span>Savings rate</span>
+              <span class="num">{{ display.savings_rate_pct }}%</span>
+            </div>
+            <div class="ledger-row">
               <span>Annual expenses</span>
               <span class="num">{{ display.annual_expenses }}</span>
             </div>
             <div class="ledger-row">
-              <span>FIRE number (target)</span>
+              <span>{% if display.is_partial %}Partial FIRE target{% else %}FIRE number (target){% endif %}</span>
               <span class="num">{{ display.fire_number }}</span>
             </div>
             <div class="ledger-row">
               <span>Real return used</span>
               <span class="num">{{ display.real_return_pct }}%</span>
             </div>
+            {% if display.is_partial %}
+            <div class="ledger-row">
+              <span>Desired amount (today's money)</span>
+              <span class="num">{{ display.desired_monthly_income_today }}/mo</span>
+            </div>
+            {% if display.desired_monthly_income_future %}
+            <div class="ledger-row">
+              <span>Same purchasing power, in {{ display.future_year }} prices</span>
+              <span class="num">{{ display.desired_monthly_income_future }}/mo</span>
+            </div>
+            {% endif %}
+            {% endif %}
           </div>
         </div>
 
-        {% if chart_data_uri %}
-          <img class="chart" src="{{ chart_data_uri }}" alt="Chart of projected net worth versus FIRE target">
+        {% if chart_payload %}
+          <div class="chart-wrap">
+            <canvas id="projectionChart" height="280"></canvas>
+          </div>
         {% endif %}
       {% else %}
         <div class="empty-state">
@@ -147,13 +190,167 @@
 
   </form>
 
+  {% if reference_table %}
+  <section class="panel reference" aria-label="Savings rate reference">
+    <p class="section-label">For comparison: years to full FIRE by savings rate</p>
+    <p class="hint">
+      Starting from zero net worth, at your current assumptions (return
+      {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%,
+      withdrawal rate {{ values.withdrawal_rate_pct }}%) — this is independent
+      of your income, only the savings rate matters.
+    </p>
+    <table class="reference-table">
+      <thead>
+        <tr>
+          {% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {% for row in reference_table %}<td>{{ row.years_display }}</td>{% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
+    // Live-update slider value labels.
     document.querySelectorAll('input[type="range"]').forEach(function (slider) {
       var output = document.getElementById(slider.dataset.output);
       var sync = function () { output.textContent = slider.value + '%'; };
       slider.addEventListener('input', sync);
       sync();
     });
+
+    // Show/hide the partial-FIRE amount field based on the checkbox.
+    var partialCheckbox = document.getElementById('partial_fire');
+    var partialField = document.getElementById('partial_fire_field');
+    partialCheckbox.addEventListener('change', function () {
+      partialField.hidden = !partialCheckbox.checked;
+    });
+
+    {% if chart_payload %}
+    // Interactive projection chart.
+    (function () {
+      var canvas = document.getElementById('projectionChart');
+
+      if (typeof Chart === 'undefined') {
+        // Chart.js failed to load from the CDN (e.g. no internet access).
+        var notice = document.createElement('p');
+        notice.className = 'hint';
+        notice.style.textAlign = 'center';
+        notice.style.padding = '2rem 0';
+        notice.textContent =
+          'Could not load the interactive chart (needs internet access for ' +
+          'the Chart.js library). Your numbers above are still correct.';
+        canvas.replaceWith(notice);
+        return;
+      }
+
+      var payload = {{ chart_payload | tojson }};
+      var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+      var dateFmt = function (ms) {
+        return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+      };
+
+      var datasets = [];
+
+      if (payload.history.length) {
+        datasets.push({
+          label: 'Recorded history',
+          data: payload.history,
+          borderColor: '#2F6F52',
+          backgroundColor: '#2F6F52',
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          tension: 0
+        });
+      }
+
+      datasets.push({
+        label: 'Projected net worth',
+        data: payload.projection,
+        borderColor: '#3B6EA5',
+        backgroundColor: '#3B6EA5',
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHitRadius: 8,
+        borderWidth: 2,
+        tension: 0.1
+      });
+
+      datasets.push({
+        label: 'FIRE target',
+        data: payload.target,
+        borderColor: '#B3402F',
+        borderDash: [6, 4],
+        pointRadius: 0,
+        borderWidth: 1.5,
+        tension: 0
+      });
+
+      if (payload.marker) {
+        datasets.push({
+          label: 'Crossing point',
+          data: [payload.marker],
+          borderColor: '#B3402F',
+          backgroundColor: '#B3402F',
+          pointRadius: 5,
+          pointHoverRadius: 6,
+          showLine: false
+        });
+      }
+
+      var ctx = canvas.getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: { datasets: datasets },
+        options: {
+          responsive: true,
+          interaction: { mode: 'nearest', axis: 'x', intersect: false },
+          scales: {
+            x: {
+              type: 'linear',
+              ticks: {
+                callback: function (value) { return dateFmt(value); },
+                maxRotation: 0,
+                autoSkip: true
+              },
+              grid: { color: '#E5E9E2' }
+            },
+            y: {
+              ticks: {
+                callback: function (value) { return moneyFmt.format(value); }
+              },
+              grid: { color: '#E5E9E2' }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { filter: function (item) { return item.text !== 'Crossing point'; } }
+            },
+            tooltip: {
+              filter: function (item) {
+                return item.dataset.label !== 'FIRE target' && item.dataset.label !== 'Crossing point';
+              },
+              callbacks: {
+                title: function (items) { return dateFmt(items[0].parsed.x); },
+                label: function (item) {
+                  var saved = item.parsed.y;
+                  var remaining = Math.max(payload.fireNumber - saved, 0);
+                  var who = item.dataset.label === 'Recorded history' ? 'Saved (recorded)' : 'Projected saved';
+                  return [who + ': ' + moneyFmt.format(saved), 'Remaining to target: ' + moneyFmt.format(remaining)];
+                }
+              }
+            }
+          }
+        }
+      });
+    })();
+    {% endif %}
   </script>
 
 </body>
