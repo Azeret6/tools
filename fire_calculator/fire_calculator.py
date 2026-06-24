@@ -40,10 +40,18 @@ Note on the real return calculation:
     accurate enough for long-term planning purposes.
 
 This is intentionally a simple, evolving tool. Already supported:
-loading a personal "savings diary" CSV (columns: `date`, `net_worth`;
-dates in YYYY-MM-DD format) to show real recorded history alongside the
-projection -- this is entirely optional and the tool works the same as
-before if you don't have one.
+
+- Loading a personal "savings diary" CSV (columns: `date`, `net_worth`;
+  dates in YYYY-MM-DD format) to show real recorded history alongside
+  the projection -- entirely optional, the tool works the same as
+  before if you don't have one.
+- "Partial FIRE": instead of targeting full expense coverage, target
+  just enough to sustainably withdraw a specific monthly amount (in
+  today's money) -- e.g. for a pension top-up rather than full
+  retirement.
+- A reference table showing, purely for illustration, how years-to-FIRE
+  changes with savings rate (independent of income), at your current
+  return/inflation/withdrawal-rate assumptions.
 
 After computing the result, this script opens a chart (via matplotlib)
 showing the projected net worth over time alongside the FIRE target as a
@@ -83,6 +91,14 @@ class FireInputs:
     # current_net_worth comes from a savings-diary CSV, this should be the
     # date of that entry instead, so projections start from the right point.
     as_of_date: _dt.date = field(default_factory=_dt.date.today)
+    # Partial FIRE: instead of targeting full expense coverage, target
+    # just enough to sustainably withdraw `desired_monthly_income` (in
+    # TODAY's money) per month via the withdrawal rate. Useful for
+    # someone who doesn't expect/want to fully retire, but wants to know
+    # when they could afford a specific monthly amount of "side income"
+    # (e.g. a pension top-up).
+    partial_fire: bool = False
+    desired_monthly_income: float | None = None  # Today's money; only used if partial_fire=True
 
 
 @dataclass
@@ -90,12 +106,18 @@ class FireResult:
     """Output of the FIRE calculation."""
 
     annual_expenses: float
-    fire_number: float
+    fire_number: float              # the target actually used (full or partial)
     real_return_pct: float
     months_to_fire: float | None   # None if the target is unreachable
     years_part: int = 0
     months_part: int = 0
     fire_date: _dt.date | None = None
+    savings_rate_pct: float = 0.0   # monthly_savings * 12 / annual_income, as a %
+    is_partial: bool = False
+    # Only set when is_partial=True:
+    desired_monthly_income_today: float | None = None    # echo of the input (today's money)
+    desired_monthly_income_future: float | None = None   # same purchasing power, expressed in
+                                                           # the (inflated) money of the year it's reached
 
 
 # ---------------------------------------------------------------------------
@@ -106,10 +128,18 @@ class FireResult:
 def calculate_fire(inputs: FireInputs) -> FireResult:
     """Compute the FIRE number and the time needed to reach it.
 
+    Normally, the target is full financial independence: enough to cover
+    `annual_expenses` (derived as income minus savings) via the
+    withdrawal rate. If `inputs.partial_fire` is set, the target instead
+    becomes just enough to sustainably withdraw
+    `inputs.desired_monthly_income` (today's money) per month -- e.g. for
+    a pension top-up rather than full retirement.
+
     Raises:
         ValueError: if monthly savings are so high that they would imply
             zero or negative living expenses (i.e. monthly_savings * 12
-            >= annual_income).
+            >= annual_income), or if partial FIRE is requested without a
+            positive `desired_monthly_income`.
     """
     annual_savings = inputs.monthly_savings * 12
     annual_expenses = inputs.annual_income - annual_savings
@@ -121,8 +151,19 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
             "income and savings amount."
         )
 
+    savings_rate_pct = (
+        (annual_savings / inputs.annual_income) * 100 if inputs.annual_income else 0.0
+    )
+
     withdrawal_rate = inputs.withdrawal_rate_pct / 100
-    fire_number = annual_expenses / withdrawal_rate
+
+    is_partial = bool(inputs.partial_fire and inputs.desired_monthly_income)
+    if is_partial:
+        if inputs.desired_monthly_income <= 0:
+            raise ValueError("Desired monthly income for partial FIRE must be positive.")
+        fire_number = (inputs.desired_monthly_income * 12) / withdrawal_rate
+    else:
+        fire_number = annual_expenses / withdrawal_rate
 
     # Simplified real return: nominal minus inflation (see module docstring).
     real_return_pct = inputs.nominal_return_pct - inputs.inflation_pct
@@ -137,9 +178,15 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
 
     years_part, months_part = (0, 0)
     fire_date = None
+    desired_monthly_income_future = None
     if months_to_fire is not None:
         years_part, months_part = divmod(round(months_to_fire), 12)
         fire_date = _add_months(inputs.as_of_date, round(months_to_fire))
+        if is_partial:
+            years_elapsed = months_to_fire / 12
+            desired_monthly_income_future = inputs.desired_monthly_income * (
+                (1 + inputs.inflation_pct / 100) ** years_elapsed
+            )
 
     return FireResult(
         annual_expenses=annual_expenses,
@@ -149,6 +196,10 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
         years_part=years_part,
         months_part=months_part,
         fire_date=fire_date,
+        savings_rate_pct=savings_rate_pct,
+        is_partial=is_partial,
+        desired_monthly_income_today=inputs.desired_monthly_income if is_partial else None,
+        desired_monthly_income_future=desired_monthly_income_future,
     )
 
 
@@ -202,6 +253,60 @@ def _add_months(start: _dt.date, months: int) -> _dt.date:
     month = month_index % 12 + 1
     day = min(start.day, 28)
     return _dt.date(year, month, day)
+
+
+# Illustrative savings rates for the reference table in `savings_rate_reference_table`.
+ILLUSTRATIVE_SAVINGS_RATES_PCT = [10, 20, 25, 30, 40, 50, 60, 70]
+
+
+def savings_rate_reference_table(
+    nominal_return_pct: float,
+    inflation_pct: float,
+    withdrawal_rate_pct: float,
+) -> list[dict]:
+    """For a range of illustrative savings rates, compute years to reach
+    full FIRE, starting from zero net worth.
+
+    This reproduces a well-known relationship popularized in the FIRE
+    community (e.g. Mr. Money Mustache's "The Shockingly Simple Math
+    Behind Early Retirement"): starting from zero, the time to reach FI
+    depends only on your savings RATE, not your absolute income -- which
+    is why the table below works for everyone regardless of how much
+    they earn. The numbers here are computed independently with this
+    module's own formula (at the given return/inflation/withdrawal-rate
+    assumptions), not copied from any external table.
+
+    Returns a list of dicts: {"savings_rate_pct": ..., "years": ... or None}.
+    `years` is None if that savings rate never reaches the target.
+    """
+    real_return_pct = nominal_return_pct - inflation_pct
+    annual_real_return = real_return_pct / 100
+    withdrawal_rate = withdrawal_rate_pct / 100
+
+    rows = []
+    for rate_pct in ILLUSTRATIVE_SAVINGS_RATES_PCT:
+        rate = rate_pct / 100
+        # An arbitrary income base of 100 -- it cancels out completely,
+        # only the savings RATE affects the result.
+        annual_income = 100.0
+        annual_savings = annual_income * rate
+        annual_expenses = annual_income - annual_savings
+
+        months = None
+        if annual_expenses > 0:
+            target = annual_expenses / withdrawal_rate
+            months = _months_to_reach_target(
+                starting_balance=0.0,
+                monthly_contribution=annual_savings / 12,
+                annual_return=annual_real_return,
+                target=target,
+            )
+
+        rows.append({
+            "savings_rate_pct": rate_pct,
+            "years": (months / 12) if months is not None else None,
+        })
+    return rows
 
 
 def _balance_at_month(
@@ -288,29 +393,17 @@ def load_savings_history(path: str) -> list[tuple[_dt.date, float]]:
 # Chart: projected net worth vs. the FIRE target
 # ---------------------------------------------------------------------------
 
-def build_projection_figure(
+def compute_projection_series(
     inputs: "FireInputs",
     result: "FireResult",
-    history: list[tuple[_dt.date, float]] | None = None,
-):
-    """Build (but do not display) a matplotlib Figure showing projected
-    net worth over time -- starting from `inputs.current_net_worth` as of
-    `inputs.as_of_date`, growing with compounding + monthly contributions
-    -- together with a horizontal reference line for the FIRE target.
+) -> tuple[list[_dt.date], list[float]]:
+    """Compute the (dates, balances) series for the projection curve,
+    starting from `inputs.current_net_worth` as of `inputs.as_of_date`.
 
-    If `history` is provided (a list of (date, net_worth) entries from a
-    savings diary), it is plotted as well, so real recorded history and
-    the future projection appear side by side on the same chart.
-
-    Returns the Figure, so callers can either display it (CLI, via
-    `plot_projection`) or save it to a buffer/file (e.g. the web UI,
-    which embeds it as a PNG).
-
-    Requires matplotlib (imported lazily so the rest of the module has no
-    hard dependency on it).
+    Shared by the matplotlib chart (`build_projection_figure`, used by
+    the CLI) and the web UI's interactive chart -- so both always show
+    exactly the same projection.
     """
-    import matplotlib.pyplot as plt
-
     monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
 
     if result.months_to_fire is not None:
@@ -326,6 +419,31 @@ def build_projection_figure(
         _balance_at_month(m, inputs.current_net_worth, inputs.monthly_savings, monthly_rate)
         for m in months
     ]
+    return dates, balances
+
+
+def build_projection_figure(
+    inputs: "FireInputs",
+    result: "FireResult",
+    history: list[tuple[_dt.date, float]] | None = None,
+):
+    """Build (but do not display) a matplotlib Figure showing projected
+    net worth over time, together with a horizontal reference line for
+    the FIRE target.
+
+    If `history` is provided (a list of (date, net_worth) entries from a
+    savings diary), it is plotted as well, so real recorded history and
+    the future projection appear side by side on the same chart.
+
+    Returns the Figure, so callers can either display it (CLI, via
+    `plot_projection`) or save it to a buffer/file.
+
+    Requires matplotlib (imported lazily so the rest of the module has no
+    hard dependency on it).
+    """
+    import matplotlib.pyplot as plt
+
+    dates, balances = compute_projection_series(inputs, result)
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -492,6 +610,23 @@ def run_cli() -> None:
     )
 
     print(
+        "\nBy default this calculates full financial independence (enough "
+        "to cover all your expenses). If instead you want to know when "
+        "you could afford a specific extra monthly amount -- e.g. a "
+        "pension top-up, without necessarily fully retiring -- you can "
+        "calculate 'partial FIRE' instead.\n"
+    )
+    partial_choice = input(
+        "Calculate partial FIRE for a specific monthly amount instead? [y/N]: "
+    ).strip().lower()
+    partial_fire = partial_choice in ("y", "yes")
+    desired_monthly_income = None
+    if partial_fire:
+        desired_monthly_income = _prompt_float(
+            "Desired extra monthly amount (today's money)", min_value=0.01
+        )
+
+    print(
         "\nThe next values have sensible defaults based on long-term "
         "historical averages. Press Enter to accept the default, or type "
         "your own value.\n"
@@ -525,6 +660,8 @@ def run_cli() -> None:
         inflation_pct=inflation_pct,
         withdrawal_rate_pct=withdrawal_rate_pct,
         as_of_date=as_of_date,
+        partial_fire=partial_fire,
+        desired_monthly_income=desired_monthly_income,
     )
 
     try:
@@ -536,27 +673,47 @@ def run_cli() -> None:
     print("\n" + "-" * 60)
     print("RESULTS")
     print("-" * 60)
+    print(f"Savings rate:                   {result.savings_rate_pct:.1f}%")
     print(f"Estimated annual expenses:     {result.annual_expenses:,.2f}")
     print(f"Real (inflation-adjusted) return: {result.real_return_pct:.2f}%")
-    print(f"FIRE number (target net worth): {result.fire_number:,.2f}")
+    if result.is_partial:
+        print(f"Partial FIRE target (today's money, {desired_monthly_income:,.2f}/mo): {result.fire_number:,.2f}")
+    else:
+        print(f"FIRE number (target net worth): {result.fire_number:,.2f}")
 
     if result.months_to_fire is None:
         print(
-            "\nWith these inputs, financial independence is not reachable "
-            "(savings/return are too low relative to the target). Try "
-            "increasing monthly savings or expected return, or lowering "
-            "expenses / the withdrawal rate target."
+            "\nWith these inputs, the target is not reachable "
+            "(savings/return are too low relative to it). Try increasing "
+            "monthly savings or expected return, or lowering the target."
         )
         print("Opening a chart to visualize the projection anyway...")
         plot_projection(inputs, result, history=history)
         return
 
-    print(
-        f"\nTime to financial independence: "
-        f"{result.years_part} years and {result.months_part} months"
-    )
+    label = "partial financial independence" if result.is_partial else "financial independence"
+    print(f"\nTime to {label}: {result.years_part} years and {result.months_part} months")
     if result.fire_date:
         print(f"Estimated date: {result.fire_date.strftime('%B %Y')}")
+
+    if result.is_partial and result.desired_monthly_income_future is not None:
+        print(
+            f"\nYour target of {result.desired_monthly_income_today:,.2f}/month (today's money) "
+            f"will be equivalent to about {result.desired_monthly_income_future:,.2f}/month "
+            f"in {result.fire_date.strftime('%Y')} prices (after "
+            f"{result.years_part}y {result.months_part}m of inflation)."
+        )
+
+    print("\n" + "-" * 60)
+    print(
+        f"For comparison: years to FULL FIRE by savings rate, at your "
+        f"current assumptions (return {nominal_return_pct:.1f}%, inflation "
+        f"{inflation_pct:.1f}%, withdrawal rate {withdrawal_rate_pct:.1f}%), "
+        f"starting from zero net worth:"
+    )
+    for row in savings_rate_reference_table(nominal_return_pct, inflation_pct, withdrawal_rate_pct):
+        years_str = f"{row['years']:.1f} years" if row["years"] is not None else "not reachable"
+        print(f"  {row['savings_rate_pct']:>3}% saved  ->  {years_str}")
 
     print("\nOpening a chart of your projected net worth...")
     plot_projection(inputs, result, history=history)
