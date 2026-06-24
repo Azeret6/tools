@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-FIRE Calculator (v1)
-=====================
+FIRE Calculator
+===============
 
 A simple command-line calculator that estimates how long it will take to
 reach Financial Independence (FI), based on the FIRE (Financial
@@ -44,11 +44,6 @@ loading a personal "savings diary" CSV (columns: `date`, `net_worth`;
 dates in YYYY-MM-DD format) to show real recorded history alongside the
 projection -- this is entirely optional and the tool works the same as
 before if you don't have one.
-
-Planned future improvements include: variable/glide-path returns,
-current age and target retirement age, Coast FIRE, salary growth, taxes,
-one-off cash flows (inheritance, big purchases), and Monte Carlo
-simulation.
 
 After computing the result, this script opens a chart (via matplotlib)
 showing the projected net worth over time alongside the FIRE target as a
@@ -228,82 +223,93 @@ def _balance_at_month(
 # Savings diary: load a personal history of (date, net_worth) entries
 # ---------------------------------------------------------------------------
 
-def load_savings_history(path: str) -> list[tuple[_dt.date, float]]:
-    """Load a savings-diary CSV with `date` and `net_worth` columns
-    (dates in YYYY-MM-DD format).
+def parse_savings_csv(file_obj) -> list[tuple[_dt.date, float]]:
+    """Parse an already-open, text-mode file-like object with `date` and
+    `net_worth` columns (dates in YYYY-MM-DD format).
+
+    Shared by `load_savings_history` (reading a CSV from disk for the
+    CLI) and the web UI (parsing an uploaded file directly from memory,
+    without writing it to disk first).
 
     Rows that can't be parsed are skipped (with a warning printed to the
     console) rather than aborting the whole load. The returned list is
     sorted by date, ascending.
 
     Raises:
-        FileNotFoundError: if `path` does not exist.
         ValueError: if the file doesn't have the expected columns.
     """
     import csv
 
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        if not reader.fieldnames:
-            raise ValueError("The CSV file appears to be empty.")
+    reader = csv.DictReader(file_obj)
+    if not reader.fieldnames:
+        raise ValueError("The CSV file appears to be empty.")
 
-        normalized = {name.strip().lower(): name for name in reader.fieldnames}
-        if "date" not in normalized or "net_worth" not in normalized:
-            raise ValueError(
-                "Expected a CSV with 'date' and 'net_worth' columns "
-                f"(found: {reader.fieldnames})."
+    normalized = {name.strip().lower(): name for name in reader.fieldnames}
+    if "date" not in normalized or "net_worth" not in normalized:
+        raise ValueError(
+            "Expected a CSV with 'date' and 'net_worth' columns "
+            f"(found: {reader.fieldnames})."
+        )
+    date_key = normalized["date"]
+    net_worth_key = normalized["net_worth"]
+
+    entries: list[tuple[_dt.date, float]] = []
+    for line_number, row in enumerate(reader, start=2):  # header = line 1
+        raw_date = (row.get(date_key) or "").strip()
+        raw_value = (row.get(net_worth_key) or "").strip()
+        try:
+            entry_date = _dt.date.fromisoformat(raw_date)
+            entry_value = float(raw_value)
+        except (ValueError, TypeError):
+            print(
+                f"  Skipping line {line_number}: could not parse "
+                f"date='{raw_date}' net_worth='{raw_value}'."
             )
-        date_key = normalized["date"]
-        net_worth_key = normalized["net_worth"]
-
-        entries: list[tuple[_dt.date, float]] = []
-        for line_number, row in enumerate(reader, start=2):  # header = line 1
-            raw_date = (row.get(date_key) or "").strip()
-            raw_value = (row.get(net_worth_key) or "").strip()
-            try:
-                entry_date = _dt.date.fromisoformat(raw_date)
-                entry_value = float(raw_value)
-            except (ValueError, TypeError):
-                print(
-                    f"  Skipping line {line_number}: could not parse "
-                    f"date='{raw_date}' net_worth='{raw_value}'."
-                )
-                continue
-            entries.append((entry_date, entry_value))
+            continue
+        entries.append((entry_date, entry_value))
 
     entries.sort(key=lambda pair: pair[0])
     return entries
+
+
+def load_savings_history(path: str) -> list[tuple[_dt.date, float]]:
+    """Load a savings-diary CSV file from disk (see `parse_savings_csv`
+    for the expected format).
+
+    Raises:
+        FileNotFoundError: if `path` does not exist.
+        ValueError: if the file doesn't have the expected columns.
+    """
+    with open(path, newline="", encoding="utf-8") as f:
+        return parse_savings_csv(f)
 
 
 # ---------------------------------------------------------------------------
 # Chart: projected net worth vs. the FIRE target
 # ---------------------------------------------------------------------------
 
-def plot_projection(
+def build_projection_figure(
     inputs: "FireInputs",
     result: "FireResult",
     history: list[tuple[_dt.date, float]] | None = None,
-) -> None:
-    """Open a window showing projected net worth over time (a smooth curve
-    starting from `inputs.current_net_worth` as of `inputs.as_of_date`,
-    growing with compounding + monthly contributions), together with a
-    horizontal reference line for the FIRE target.
+):
+    """Build (but do not display) a matplotlib Figure showing projected
+    net worth over time -- starting from `inputs.current_net_worth` as of
+    `inputs.as_of_date`, growing with compounding + monthly contributions
+    -- together with a horizontal reference line for the FIRE target.
 
     If `history` is provided (a list of (date, net_worth) entries from a
     savings diary), it is plotted as well, so real recorded history and
     the future projection appear side by side on the same chart.
 
+    Returns the Figure, so callers can either display it (CLI, via
+    `plot_projection`) or save it to a buffer/file (e.g. the web UI,
+    which embeds it as a PNG).
+
     Requires matplotlib (imported lazily so the rest of the module has no
     hard dependency on it).
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print(
-            "\n(Skipping chart: matplotlib is not installed. "
-            "Install it with 'pip install matplotlib' to see the graph.)"
-        )
-        return
+    import matplotlib.pyplot as plt
 
     monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
 
@@ -329,31 +335,31 @@ def plot_projection(
         ax.plot(
             hist_dates,
             hist_values,
-            color="#16a34a",
+            color="#2F6F52",
             marker="o",
             markersize=4,
             linewidth=2,
             label="Recorded history",
         )
 
-    ax.plot(dates, balances, color="#2563eb", linewidth=2, label="Projected net worth")
+    ax.plot(dates, balances, color="#3B6EA5", linewidth=2, label="Projected net worth")
     ax.axhline(
         result.fire_number,
-        color="red",
+        color="#B3402F",
         linestyle="--",
         linewidth=1.5,
         label=f"FIRE target: {result.fire_number:,.0f}",
     )
 
     if result.months_to_fire is not None and result.fire_date is not None:
-        ax.scatter([result.fire_date], [result.fire_number], color="red", zorder=5)
+        ax.scatter([result.fire_date], [result.fire_number], color="#B3402F", zorder=5)
         ax.annotate(
             f"{result.fire_date.strftime('%B %Y')}\n({result.years_part}y {result.months_part}m)",
             xy=(result.fire_date, result.fire_number),
             xytext=(10, 12),
             textcoords="offset points",
             fontsize=9,
-            color="red",
+            color="#B3402F",
         )
     else:
         ax.text(
@@ -362,7 +368,7 @@ def plot_projection(
             "Target not reached within the shown horizon at these assumptions.",
             transform=ax.transAxes,
             fontsize=9,
-            color="red",
+            color="#B3402F",
             va="top",
         )
 
@@ -372,7 +378,27 @@ def plot_projection(
     ax.legend(loc="lower right")
     ax.grid(True, alpha=0.3)
     fig.autofmt_xdate()
-    plt.tight_layout()
+    fig.tight_layout()
+    return fig
+
+
+def plot_projection(
+    inputs: "FireInputs",
+    result: "FireResult",
+    history: list[tuple[_dt.date, float]] | None = None,
+) -> None:
+    """Open a window displaying the chart built by `build_projection_figure`.
+    Used by the CLI. Requires matplotlib; see `build_projection_figure`."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print(
+            "\n(Skipping chart: matplotlib is not installed. "
+            "Install it with 'pip install matplotlib' to see the graph.)"
+        )
+        return
+
+    build_projection_figure(inputs, result, history=history)
     plt.show()
 
 
