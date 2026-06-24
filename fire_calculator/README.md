@@ -15,7 +15,7 @@ code, so results are identical either way:
 - **Command line** (`fire_calculator.py`) — no installation beyond
   Python itself plus `matplotlib` for the chart.
 - **Browser** (`app.py`) — a small local Flask app with sliders for the
-  adjustable assumptions.
+  adjustable assumptions and an interactive (hover-to-explore) chart.
 
 ## Command-line usage
 
@@ -43,6 +43,22 @@ terms).
 | Nominal annual return *(optional)* | Expected investment return, before inflation. Default: **8%** |
 | Inflation rate *(optional)* | Expected long-term inflation. Default: **3%** |
 | Withdrawal rate *(optional)* | The "safe withdrawal rate" used to size your FIRE number. Default: **4%** (recommended range: 3–5%) |
+| Partial FIRE *(optional)* | Tick this and enter a desired monthly amount (today's money) to target a specific amount of sustainable monthly income — e.g. a pension top-up — instead of full financial independence. |
+
+## Partial FIRE
+
+By default, the calculator targets *full* financial independence: enough
+invested to cover all your current expenses. If you don't expect to (or
+don't want to) reach that, but would still like to know when you could
+sustainably afford some specific extra monthly amount — e.g. "when can I
+afford an extra 10,000/month on top of my pension?" — tick **Calculate
+partial FIRE instead** and enter that amount, in today's money.
+
+The target then becomes `(desired monthly amount × 12) / withdrawal rate`
+instead of being derived from your expenses. Since today's money will be
+worth less by the time you get there, the calculator also shows what
+that same amount will look like in the prices of the year you reach it
+(using your inflation assumption).
 
 ## Savings diary (optional)
 
@@ -85,20 +101,31 @@ savings diary CSV, and sliders (pre-filled with the defaults) for
 return, inflation, and withdrawal rate. Press **Calculate** to see your
 results and chart.
 
+The chart is interactive (rendered client-side with Chart.js): hover
+anywhere along the line to see the exact date, how much you'd have
+saved by then, and how much is left to reach your target.
+
 `app.py` has no calculation logic of its own — it calls the exact same
 functions in `fire_calculator.py` as the command-line version, so both
 interfaces always agree.
 
 ## Output
 
+- **Savings rate** — what share of your income you're investing
 - Estimated annual expenses (derived as `income − savings × 12`)
 - Real (inflation-adjusted) return used in the calculation
-- **FIRE number** — the target net worth you're aiming for
+- **FIRE number** (or **partial FIRE target**) — the net worth you're aiming for
 - **Time to FI** — in years and months, plus an estimated calendar date
-- A **chart** (opens automatically) showing your projected net worth over
-  time, with the FIRE target as a horizontal reference line and the
-  estimated crossing point marked — plus your recorded history, if a
-  savings diary was loaded
+- A **chart** showing your projected net worth over time, with the target
+  as a horizontal reference line and the estimated crossing point marked
+  — plus your recorded history, if a savings diary was loaded
+- A **reference table**: years to full FIRE at a range of illustrative
+  savings rates (10–70%), at your own return/inflation/withdrawal-rate
+  assumptions, starting from zero net worth — for context on how much
+  difference your savings rate alone makes. This is the same idea
+  popularized by Mr. Money Mustache's *"The Shockingly Simple Math Behind
+  Early Retirement"*, computed independently with this calculator's own
+  model rather than copied from that table.
 
 ## Assumptions & default values
 
