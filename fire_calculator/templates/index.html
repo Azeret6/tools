@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIRE Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <header class="masthead">
+    <p class="eyebrow">Financial Independence</p>
+    <h1>FIRE Calculator</h1>
+    <p class="subtitle">Estimate how long until your investments can cover your expenses.</p>
+  </header>
+
+  <form class="layout" method="post" enctype="multipart/form-data" novalidate>
+
+    <section class="panel inputs" aria-label="Your numbers">
+
+      <div class="field-group">
+        <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
+        <input type="file" id="savings_diary" name="savings_diary" accept=".csv">
+        <p class="hint">
+          Columns <code>date,net_worth</code>. If provided, your most recent
+          entry is used as current net worth automatically.
+        </p>
+        {% if history_count %}
+          <p class="hint loaded">Loaded {{ history_count }} entries.</p>
+        {% endif %}
+      </div>
+
+      <div class="field-group">
+        <label for="current_net_worth">Current net worth</label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="current_net_worth" name="current_net_worth"
+          value="{{ values.current_net_worth }}" placeholder="e.g. 20000" required>
+      </div>
+
+      <div class="field-group">
+        <label for="annual_income">Annual net income</label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="annual_income" name="annual_income"
+          value="{{ values.annual_income }}" placeholder="e.g. 50000" required>
+      </div>
+
+      <div class="field-group">
+        <label for="monthly_savings">Monthly savings</label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="monthly_savings" name="monthly_savings"
+          value="{{ values.monthly_savings }}" placeholder="e.g. 1000" required>
+      </div>
+
+      <hr class="divider">
+      <p class="section-label">Assumptions</p>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="nominal_return_pct">Nominal annual return</label>
+          <output id="nominal_return_out" for="nominal_return_pct">{{ values.nominal_return_pct }}%</output>
+        </div>
+        <input
+          type="range" id="nominal_return_pct" name="nominal_return_pct"
+          min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}"
+          data-output="nominal_return_out">
+      </div>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="inflation_pct">Inflation rate</label>
+          <output id="inflation_out" for="inflation_pct">{{ values.inflation_pct }}%</output>
+        </div>
+        <input
+          type="range" id="inflation_pct" name="inflation_pct"
+          min="0" max="15" step="0.1" value="{{ values.inflation_pct }}"
+          data-output="inflation_out">
+      </div>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="withdrawal_rate_pct">Withdrawal rate</label>
+          <output id="withdrawal_out" for="withdrawal_rate_pct">{{ values.withdrawal_rate_pct }}%</output>
+        </div>
+        <input
+          type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct"
+          min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}"
+          data-output="withdrawal_out">
+        <p class="hint">Recommended range: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
+      </div>
+
+      <button type="submit" class="calculate-btn">Calculate</button>
+    </section>
+
+    <section class="panel results" aria-label="Results">
+      {% if error %}
+        <div class="error-banner">
+          <p class="error-label">Could not calculate</p>
+          <p>{{ error }}</p>
+        </div>
+      {% elif display %}
+        <div class="receipt">
+
+          {% if display.reachable %}
+            <p class="result-label">Time to financial independence</p>
+            <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
+            <p class="result-sub">Estimated: {{ display.fire_date }}</p>
+          {% else %}
+            <p class="result-label">Not reachable</p>
+            <p class="result-sub unreachable">
+              At these assumptions, savings and/or return are too low to
+              reach the target. Try increasing monthly savings or expected
+              return.
+            </p>
+          {% endif %}
+
+          <div class="ledger-rows">
+            <div class="ledger-row">
+              <span>Annual expenses</span>
+              <span class="num">{{ display.annual_expenses }}</span>
+            </div>
+            <div class="ledger-row">
+              <span>FIRE number (target)</span>
+              <span class="num">{{ display.fire_number }}</span>
+            </div>
+            <div class="ledger-row">
+              <span>Real return used</span>
+              <span class="num">{{ display.real_return_pct }}%</span>
+            </div>
+          </div>
+        </div>
+
+        {% if chart_data_uri %}
+          <img class="chart" src="{{ chart_data_uri }}" alt="Chart of projected net worth versus FIRE target">
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <p>Fill in your numbers and press Calculate.</p>
+          <p class="hint">All amounts should be in the same currency — which one doesn't matter.</p>
+        </div>
+      {% endif %}
+    </section>
+
+  </form>
+
+  <script>
+    document.querySelectorAll('input[type="range"]').forEach(function (slider) {
+      var output = document.getElementById(slider.dataset.output);
+      var sync = function () { output.textContent = slider.value + '%'; };
+      slider.addEventListener('input', sync);
+      sync();
+    });
+  </script>
+
+</body>
+</html>
