@@ -1,15 +1,23 @@
 # FIRE Calculator
 
-A simple command-line tool that estimates how long it will take you to
-reach **Financial Independence (FI)** — the point at which your invested
-assets can sustainably cover your living expenses, based on the classic
+A tool that estimates how long it will take you to reach **Financial
+Independence (FI)** — the point at which your invested assets can
+sustainably cover your living expenses, based on the classic
 FIRE-movement math:
 
 ```
 FIRE number = annual expenses / withdrawal rate
 ```
 
-## Usage
+Use whichever interface suits you — both share the same calculation
+code, so results are identical either way:
+
+- **Command line** (`fire_calculator.py`) — no installation beyond
+  Python itself plus `matplotlib` for the chart.
+- **Browser** (`app.py`) — a small local Flask app with sliders for the
+  adjustable assumptions.
+
+## Command-line usage
 
 ```bash
 python3 fire_calculator.py
@@ -63,6 +71,24 @@ A sample file, `savings_log_example.csv`, is included as a template.
 `.gitignore` is already set up to keep such files out of version
 control, while `*_example.csv` files stay tracked.
 
+## Web interface
+
+```bash
+pip install -r requirements.txt
+python3 app.py
+```
+
+Then open **http://127.0.0.1:5000** in your browser. The same inputs as
+the command-line version are there, just as a form: number fields for
+current net worth / income / savings, a file picker for an optional
+savings diary CSV, and sliders (pre-filled with the defaults) for
+return, inflation, and withdrawal rate. Press **Calculate** to see your
+results and chart.
+
+`app.py` has no calculation logic of its own — it calls the exact same
+functions in `fire_calculator.py` as the command-line version, so both
+interfaces always agree.
+
 ## Output
 
 - Estimated annual expenses (derived as `income − savings × 12`)
@@ -88,9 +114,9 @@ control, while `*_example.csv` files stay tracked.
   used by most popular FIRE calculators (rather than the more precise
   Fisher equation). Accurate enough for long-term planning.
 
-## Limitations (v1)
+## Limitations
 
-This is a first, intentionally simple version:
+This is an intentionally simple calculator:
 
 - Assumes constant monthly savings and a constant rate of return — no
   salary growth, lifestyle changes, or market volatility.
@@ -98,24 +124,14 @@ This is a first, intentionally simple version:
   spending needs in retirement.
 - Single-point estimate only — no Monte Carlo simulation or
   sequence-of-returns risk modeling.
-- No support for current age / target retirement age (planned for a
-  later version).
-
-## Roadmap
-
-- ~~**v1.1** — visualize projected net worth over time, with the FIRE
-  target shown as a reference line.~~ ✅ Done
-- ~~**v2** — load historical net-worth entries (a personal "savings
-  diary", stored as CSV) and plot history alongside the projection.~~ ✅ Done
-- **v3** — web interface with adjustable sliders for the default
-  assumptions.
-- Further ahead: current age / target retirement age, Coast FIRE, salary
-  growth, taxes, one-off cash flows, Monte Carlo simulation.
+- No support for current age / target retirement age.
 
 ## Requirements
 
-Python 3.9+. The core calculation has no external dependencies; the
-chart requires `matplotlib` (see `requirements.txt`).
+Python 3.9+.
+
+- Command-line version: no dependencies beyond `matplotlib` (for the chart).
+- Web version: also needs `flask`.
 
 ```bash
 pip install -r requirements.txt
