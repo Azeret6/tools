@@ -10,6 +10,15 @@
 </head>
 <body>
 
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{{ ' active' if t.folder == hub_active else '' }}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
 <div class="sheet">
 
   <header class="masthead">
