@@ -10,6 +10,13 @@
 </head>
 <body>
 
+  <nav class="tool-nav">
+    <a href="/" class="tool-nav-link active">Home</a>
+    {% for t in tools %}
+    <a href="{{ t.prefix }}/" class="tool-nav-link">{{ t.title }}</a>
+    {% endfor %}
+  </nav>
+
   <header class="masthead">
     <p class="eyebrow">a small collection of</p>
     <h1>tools</h1>
