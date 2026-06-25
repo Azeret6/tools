@@ -34,7 +34,7 @@ from __future__ import annotations
 import datetime as _dt
 import io
 
-from flask import Blueprint, Flask, render_template, request
+from flask import Blueprint, Flask, current_app, render_template, request
 
 import fire_calculator as fc
 
@@ -123,6 +123,8 @@ def index():
         "chart_payload": None,
         "history_count": None,
         "reference_table": None,
+        "hub_tools": current_app.config.get("HUB_TOOLS"),
+        "hub_active": "fire_calculator",
     }
 
     if request.method == "POST":

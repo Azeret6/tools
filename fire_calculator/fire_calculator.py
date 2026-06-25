@@ -256,7 +256,7 @@ def _add_months(start: _dt.date, months: int) -> _dt.date:
 
 
 # Illustrative savings rates for the reference table in `savings_rate_reference_table`.
-ILLUSTRATIVE_SAVINGS_RATES_PCT = [10, 20, 25, 30, 40, 50, 60, 70]
+ILLUSTRATIVE_SAVINGS_RATES_PCT = [10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90]
 
 
 def savings_rate_reference_table(

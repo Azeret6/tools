@@ -123,7 +123,7 @@ To open this alongside the other tools in this repo from one page, see
   as a horizontal reference line and the estimated crossing point marked
   — plus your recorded history, if a savings diary was loaded
 - A **reference table**: years to full FIRE at a range of illustrative
-  savings rates (10–70%), at your own return/inflation/withdrawal-rate
+  savings rates (10–90%), at your own return/inflation/withdrawal-rate
   assumptions, starting from zero net worth — for context on how much
   difference your savings rate alone makes. This is the same idea
   popularized by Mr. Money Mustache's *"The Shockingly Simple Math Behind
