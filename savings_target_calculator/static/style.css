@@ -252,3 +252,35 @@ input[type="range"] {
   color: var(--ink-soft);
   font-size: 0.88rem;
 }
+
+/* ----------------------------------------------------------------
+   Tool nav (shown only when running inside the hub)
+   ---------------------------------------------------------------- */
+.tool-nav {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 24px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.tool-nav-link {
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding-bottom: 5px;
+  border-bottom: 2px solid transparent;
+}
+
+.tool-nav-link:hover {
+  color: var(--ink);
+}
+
+.tool-nav-link.active {
+  color: var(--blue);
+  font-weight: 600;
+  border-bottom-color: var(--blue);
+}
