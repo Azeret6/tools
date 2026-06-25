@@ -86,9 +86,14 @@ def create_app() -> Flask:
         blueprint = _load_blueprint(tool["folder"])
         app.register_blueprint(blueprint, url_prefix=tool["prefix"])
 
+    # Lets each tool's own template know it's running inside the hub (so
+    # it can show a nav bar back to the others) -- absent when a tool is
+    # run completely on its own, where there's nothing to navigate to.
+    app.config["HUB_TOOLS"] = TOOLS
+
     @app.route("/")
     def index():
-        return render_template("index.html", tools=TOOLS)
+        return render_template("index.html", tools=TOOLS, hub_tools=TOOLS, hub_active=None)
 
     return app
 
