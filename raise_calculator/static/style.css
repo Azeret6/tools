@@ -1,0 +1,478 @@
+/* ----------------------------------------------------------------
+   Design tokens
+   ---------------------------------------------------------------- */
+:root {
+  --paper: #F3F5F0;
+  --panel: #FFFFFF;
+  --ink: #1B2B27;
+  --mute: #6E7A73;
+  --line: #DCE3DA;
+  --ledger: #2F6F52;
+  --ledger-dark: #1F5A40;
+  --brick: #B3402F;
+
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  padding: 0 1.5rem 4rem;
+}
+
+/* ----------------------------------------------------------------
+   Header
+   ---------------------------------------------------------------- */
+.masthead {
+  max-width: 64rem;
+  margin: 3rem auto 2rem;
+  text-align: left;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ledger-dark);
+  margin: 0 0 0.4rem;
+}
+
+.masthead h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  color: var(--mute);
+  margin: 0;
+  max-width: 36rem;
+}
+
+/* ----------------------------------------------------------------
+   Layout
+   ---------------------------------------------------------------- */
+.layout {
+  max-width: 64rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1.75rem;
+}
+
+/* ----------------------------------------------------------------
+   Form fields
+   ---------------------------------------------------------------- */
+.field-group {
+  margin-bottom: 1.25rem;
+}
+
+.field-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--mute);
+  font-size: 0.8em;
+}
+
+input[type="number"],
+input[type="file"] {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+input[type="number"]:focus,
+input[type="file"]:focus,
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--ledger);
+  outline-offset: 1px;
+}
+
+input[type="file"] {
+  font-family: var(--font-body);
+  padding: 0.4rem;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--mute);
+  margin: 0.4rem 0 0;
+}
+
+.hint code {
+  font-family: var(--font-mono);
+  background: var(--paper);
+  padding: 0.05rem 0.3rem;
+  border-radius: 2px;
+}
+
+.hint.loaded {
+  color: var(--ledger-dark);
+  font-weight: 600;
+}
+
+.divider {
+  border: none;
+  border-top: 1px dashed var(--line);
+  margin: 1.5rem 0;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 0 0 1rem;
+}
+
+/* Sliders */
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.45rem;
+}
+
+.slider-label label {
+  margin-bottom: 0;
+}
+
+output {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--ledger-dark);
+}
+
+input[type="range"] {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  margin: 0.3rem 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ledger);
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--ledger);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ledger);
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--ledger);
+  cursor: pointer;
+}
+
+.calculate-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.8rem 1rem;
+  background: var(--ledger);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.calculate-btn:hover {
+  background: var(--ledger-dark);
+}
+
+.calculate-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .calculate-btn {
+    transition: background 0.15s ease;
+  }
+}
+
+/* ----------------------------------------------------------------
+   Results panel ("receipt")
+   ---------------------------------------------------------------- */
+.results {
+  padding-top: 0;
+  overflow: hidden;
+}
+
+.receipt {
+  position: relative;
+  padding: 1.75rem 1.75rem 1.5rem;
+  margin: 0 -1.75rem;
+}
+
+/* Perforated / torn-ticket edge along the top of the results receipt */
+.receipt::before {
+  content: "";
+  display: block;
+  height: 11px;
+  margin: -1px -1px 1rem -1px;
+  background-image: radial-gradient(circle at 9px 0, var(--paper) 9px, transparent 9.5px);
+  background-size: 18px 11px;
+  background-repeat: repeat-x;
+  background-position: -3px 0;
+}
+
+.result-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 0 0 0.3rem;
+}
+
+.big-number {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2.6rem, 6vw, 3.6rem);
+  line-height: 1;
+  color: var(--ledger-dark);
+  margin: 0 0 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.big-number .unit {
+  font-size: 0.5em;
+  color: var(--mute);
+  margin-right: 0.3em;
+}
+
+.result-sub {
+  margin: 0 0 1.25rem;
+  color: var(--mute);
+}
+
+.result-sub.unreachable {
+  color: var(--brick);
+}
+
+.ledger-rows {
+  border-top: 1px dashed var(--line);
+  padding-top: 0.9rem;
+}
+
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+}
+
+.ledger-row .num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-wrap {
+  margin-top: 1rem;
+  padding: 0 1.75rem 1.5rem;
+}
+
+.error-banner {
+  border-left: 3px solid var(--brick);
+  background: #FBEDEA;
+  padding: 0.9rem 1.1rem;
+  border-radius: 3px;
+}
+
+.error-label {
+  font-weight: 600;
+  color: var(--brick);
+  margin: 0 0 0.3rem;
+}
+
+.error-banner p:last-child {
+  margin: 0;
+  color: var(--ink);
+}
+
+.empty-state {
+  padding: 2.5rem 0.5rem;
+  color: var(--mute);
+  text-align: center;
+}
+
+.empty-state p:first-child {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+
+/* ----------------------------------------------------------------
+   Checkbox (partial FIRE toggle)
+   ---------------------------------------------------------------- */
+.checkbox-group {
+  margin-bottom: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ledger);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.checkbox-label strong {
+  font-weight: 600;
+}
+
+/* ----------------------------------------------------------------
+   Reference table (savings rate -> years)
+   ---------------------------------------------------------------- */
+.panel.reference {
+  max-width: 64rem;
+  margin: 1.5rem auto 0;
+}
+
+.reference-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.reference-table th,
+.reference-table td {
+  text-align: center;
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px dashed var(--line);
+}
+
+.reference-table th {
+  color: var(--mute);
+  font-weight: 600;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.reference-table td {
+  font-weight: 600;
+  color: var(--ledger-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .reference-table {
+    font-size: 0.78rem;
+  }
+  .reference-table th,
+  .reference-table td {
+    padding: 0.4rem 0.2rem;
+  }
+}
+
+/* ----------------------------------------------------------------
+   Scenario rows (raise_calculator)
+   ---------------------------------------------------------------- */
+.scenario {
+  border-top: 1px dashed var(--line);
+  padding: 0.9rem 0;
+}
+
+.scenario:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.scenario-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+}
+
+.scenario-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.scenario .ledger-row {
+  padding: 0.2rem 0;
+  font-size: 0.88rem;
+}
+
+.callout {
+  margin-top: 1rem;
+  padding: 0.9rem 1.1rem;
+  background: #EEF6F0;
+  border-left: 3px solid var(--ledger);
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+.callout p {
+  margin: 0.2rem 0;
+}
+

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savings Target Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('savings_target_calculator.static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <p class="eyebrow">how much to save each month</p>
+    <h1>Savings Target Calculator</h1>
+    <p class="dek">Set a desired income in retirement and a savings horizon. This works out the monthly amount that gets you there, in today's money.</p>
+  </header>
+
+  <div class="layout">
+
+    <form id="calc-form" class="ledger">
+
+      <div class="field">
+        <label for="desired_monthly_income">Desired monthly income in retirement</label>
+        <div class="input-with-unit">
+          <input type="number" id="desired_monthly_income" name="desired_monthly_income"
+                 value="{{ defaults.desired_monthly_income }}" min="0" step="500">
+          <span class="unit">/ month, today's money</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="current_savings">Already saved today <span class="optional">(optional)</span></label>
+        <div class="input-with-unit">
+          <input type="number" id="current_savings" name="current_savings"
+                 value="{{ defaults.current_savings }}" min="0" step="1000">
+        </div>
+      </div>
+
+      <div class="field slider-field">
+        <label for="years_slider">
+          Savings horizon
+          <span class="live-value"><span id="years_display">{{ defaults.years }}</span> years</span>
+        </label>
+        <input type="range" id="years_slider" min="1" max="40" step="1" value="{{ defaults.years }}">
+        <div class="months-row">
+          <label for="months_input" class="months-label">or exact number of months</label>
+          <input type="number" id="months_input" min="1" max="480" step="1" value="{{ (defaults.years * 12) | int }}">
+        </div>
+      </div>
+
+      <div class="field slider-field">
+        <label for="withdrawal_rate">
+          Withdrawal rate
+          <span class="live-value"><span id="withdrawal_rate_display"></span>%</span>
+        </label>
+        <input type="range" id="withdrawal_rate" min="0.02" max="0.06" step="0.001" value="{{ defaults.withdrawal_rate }}">
+      </div>
+
+      <div class="field slider-field">
+        <label for="nominal_return">
+          Expected nominal annual return
+          <span class="live-value"><span id="nominal_return_display"></span>%</span>
+        </label>
+        <input type="range" id="nominal_return" min="0" max="0.15" step="0.001" value="{{ defaults.nominal_return }}">
+      </div>
+
+      <div class="field slider-field">
+        <label for="inflation">
+          Expected annual inflation
+          <span class="live-value"><span id="inflation_display"></span>%</span>
+        </label>
+        <input type="range" id="inflation" min="0" max="0.10" step="0.001" value="{{ defaults.inflation }}">
+      </div>
+
+      <button type="submit" class="calculate-btn">Calculate</button>
+      <p id="form-error" class="form-error" hidden></p>
+    </form>
+
+    <div class="results">
+
+      <div class="receipt">
+        <div class="perforation"></div>
+        <p class="receipt-label">required monthly savings</p>
+        <p class="headline-number" id="required_monthly_savings">-</p>
+
+        <div class="receipt-rows">
+          <div class="row">
+            <span>Annual income needed</span>
+            <span id="annual_income_needed" class="num">-</span>
+          </div>
+          <div class="row">
+            <span>Target amount (your number)</span>
+            <span id="target_amount" class="num">-</span>
+          </div>
+          <div class="row">
+            <span>Real annual return used</span>
+            <span id="real_annual_return" class="num">-</span>
+          </div>
+          <div class="row divider"></div>
+          <div class="row">
+            <span>Total you contribute</span>
+            <span id="total_contributed" class="num">-</span>
+          </div>
+          <div class="row">
+            <span>Total from investment growth</span>
+            <span id="total_growth" class="num">-</span>
+          </div>
+        </div>
+        <div class="perforation"></div>
+      </div>
+
+      <div class="chart-card">
+        <canvas id="projection_chart" height="280"></canvas>
+        <p id="chart-fallback" class="chart-fallback" hidden>
+          Chart.js could not be loaded, so the chart isn't available right now - the numbers above are still accurate.
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+<script src="{{ url_for('savings_target_calculator.static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -34,11 +34,16 @@ from __future__ import annotations
 import datetime as _dt
 import io
 
-from flask import Flask, render_template, request
+from flask import Blueprint, Flask, render_template, request
 
 import fire_calculator as fc
 
-app = Flask(__name__)
+bp = Blueprint(
+    "fire_calculator",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+)
 
 
 def _parse_form_float(form, name: str, default: float | None = None) -> float | None:
@@ -96,7 +101,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
     }
 
 
-@app.route("/", methods=["GET", "POST"])
+@bp.route("/", methods=["GET", "POST"])
 def index():
     values = {
         "current_net_worth": "",
@@ -228,8 +233,18 @@ def index():
         row["years_display"] = f"{row['years']:.1f}" if row["years"] is not None else "not reachable"
     context["reference_table"] = reference_rows
 
-    return render_template("index.html", **context)
+    return render_template("fire_calculator/index.html", **context)
+
+
+def create_app() -> Flask:
+    """Build a standalone Flask app around this tool's blueprint, so it
+    can still be run on its own (`python3 app.py`) exactly as before.
+    The hub instead imports `bp` directly and mounts it alongside the
+    other tools."""
+    standalone = Flask(__name__)
+    standalone.register_blueprint(bp)
+    return standalone
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    create_app().run(debug=True)

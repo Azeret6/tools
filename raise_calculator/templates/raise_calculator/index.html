@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raise Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('raise_calculator.static', filename='style.css') }}">
+</head>
+<body>
+
+  <header class="masthead">
+    <p class="eyebrow">Pay raise, long term</p>
+    <h1>Raise Calculator</h1>
+    <p class="subtitle">See what a raise is actually worth over time -- spent, kept as cash, or invested.</p>
+  </header>
+
+  <form class="layout" method="post" novalidate>
+
+    <section class="panel inputs" aria-label="Your numbers">
+
+      <div class="field-group">
+        <label for="current_monthly_savings">Current monthly savings</label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="current_monthly_savings" name="current_monthly_savings"
+          value="{{ values.current_monthly_savings }}" placeholder="e.g. 5000" required>
+        <p class="hint">What you currently invest each month, net.</p>
+      </div>
+
+      <div class="field-group">
+        <label for="raise_amount">Net monthly raise</label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="raise_amount" name="raise_amount"
+          value="{{ values.raise_amount }}" placeholder="e.g. 2000" required>
+        <p class="hint">The take-home increase in your monthly pay.</p>
+      </div>
+
+      <div class="field-group">
+        <label for="current_net_worth">Current net worth <span class="optional">(invested assets)</span></label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="current_net_worth" name="current_net_worth"
+          value="{{ values.current_net_worth }}" placeholder="0">
+      </div>
+
+      <hr class="divider">
+
+      <div class="field-group checkbox-group">
+        <label class="checkbox-label" for="compare_fire">
+          <input
+            type="checkbox" id="compare_fire" name="compare_fire"
+            {% if values.compare_fire %}checked{% endif %}>
+          Compare against a <strong>FIRE target</strong>
+        </label>
+        <p class="hint">See how many years sooner -- if any -- investing the raise gets you there.</p>
+      </div>
+
+      <div class="field-group" id="fire_fields" {% if not values.compare_fire %}hidden{% endif %}>
+        <label for="annual_expenses">Annual expenses in retirement <span class="optional">(today's money)</span></label>
+        <input
+          type="number" step="any" min="0" inputmode="decimal"
+          id="annual_expenses" name="annual_expenses"
+          value="{{ values.annual_expenses }}" placeholder="e.g. 300000">
+
+        <div class="field-group slider-group" style="margin-top: 1rem;">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out" for="withdrawal_rate_pct" data-suffix="%">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input
+            type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct"
+            min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}"
+            data-output="withdrawal_out" data-suffix="%">
+          <p class="hint">Recommended range: {{ withdrawal_min }}-{{ withdrawal_max }}%</p>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <p class="section-label">Assumptions</p>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="nominal_return_pct">Nominal annual return</label>
+          <output id="nominal_return_out" for="nominal_return_pct" data-suffix="%">{{ values.nominal_return_pct }}%</output>
+        </div>
+        <input
+          type="range" id="nominal_return_pct" name="nominal_return_pct"
+          min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}"
+          data-output="nominal_return_out" data-suffix="%">
+      </div>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="inflation_pct">Inflation rate</label>
+          <output id="inflation_out" for="inflation_pct" data-suffix="%">{{ values.inflation_pct }}%</output>
+        </div>
+        <input
+          type="range" id="inflation_pct" name="inflation_pct"
+          min="0" max="15" step="0.1" value="{{ values.inflation_pct }}"
+          data-output="inflation_out" data-suffix="%">
+      </div>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="projection_years">Chart horizon</label>
+          <output id="years_out" for="projection_years" data-suffix="y">{{ values.projection_years }}y</output>
+        </div>
+        <input
+          type="range" id="projection_years" name="projection_years"
+          min="1" max="80" step="1" value="{{ values.projection_years }}"
+          data-output="years_out" data-suffix="y">
+        <p class="hint">Extended automatically if needed to show a FIRE target being reached.</p>
+      </div>
+
+      <button type="submit" class="calculate-btn">Calculate</button>
+    </section>
+
+    <section class="panel results" aria-label="Results">
+      {% if error %}
+        <div class="error-banner">
+          <p class="error-label">Could not calculate</p>
+          <p>{{ error }}</p>
+        </div>
+      {% elif result %}
+        <div class="receipt">
+          <p class="result-label">Real return used</p>
+          <p class="big-number">{{ "%.1f"|format(result.real_return_pct) }}<span class="unit">%</span></p>
+          <p class="result-sub">
+            Idle cash: {{ "%.1f"|format(result.cash_real_return_pct) }}% real
+            (it loses purchasing power to inflation, since it isn't invested).
+            {% if result.fire_target %}FIRE target: {{ "{:,.0f}".format(result.fire_target) }}.{% endif %}
+          </p>
+
+          <div class="ledger-rows" style="border-top: none; padding-top: 0;">
+            {% for scenario in result.scenarios %}
+            <div class="scenario">
+              <p class="scenario-label">
+                <span class="scenario-dot" style="background: {{ chart_payload.series[loop.index0].color }};"></span>
+                {{ scenario.label }}
+              </p>
+              <div class="ledger-row">
+                <span>Invested monthly</span>
+                <span class="num">{{ "{:,.0f}".format(scenario.invested_monthly) }}</span>
+              </div>
+              {% if scenario.cash_monthly %}
+              <div class="ledger-row">
+                <span>Kept as cash monthly</span>
+                <span class="num">{{ "{:,.0f}".format(scenario.cash_monthly) }}</span>
+              </div>
+              {% endif %}
+              {% if scenario.years_to_target is not none %}
+              <div class="ledger-row">
+                <span>Time to FIRE target</span>
+                <span class="num">{{ scenario.years_to_target|int }}y {{ ((scenario.years_to_target - scenario.years_to_target|int) * 12)|round|int }}m</span>
+              </div>
+              {% else %}
+              <div class="ledger-row">
+                <span>Net worth after {{ scenario.net_worth_by_year[-1][0] }}y</span>
+                <span class="num">{{ "{:,.0f}".format(scenario.net_worth_by_year[-1][1]) }}</span>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+
+          {% if diffs %}
+          <div class="callout">
+            {% for line in diffs %}
+            <p>{{ line }}</p>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        {% if chart_payload %}
+          <div class="chart-wrap">
+            <canvas id="comparisonChart" height="280"></canvas>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <p>Fill in your numbers and press Calculate.</p>
+          <p class="hint">All amounts should be in the same currency -- which one doesn't matter.</p>
+        </div>
+      {% endif %}
+    </section>
+
+  </form>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    // Live-update slider value labels (each slider declares its own unit
+    // via data-suffix, so this works for both percentages and years).
+    document.querySelectorAll('input[type="range"]').forEach(function (slider) {
+      var output = document.getElementById(slider.dataset.output);
+      var sync = function () { output.textContent = slider.value + (slider.dataset.suffix || ''); };
+      slider.addEventListener('input', sync);
+      sync();
+    });
+
+    // Show/hide the FIRE comparison fields based on the checkbox.
+    var fireCheckbox = document.getElementById('compare_fire');
+    var fireFields = document.getElementById('fire_fields');
+    fireCheckbox.addEventListener('change', function () {
+      fireFields.hidden = !fireCheckbox.checked;
+    });
+
+    {% if chart_payload %}
+    // Interactive comparison chart.
+    (function () {
+      var canvas = document.getElementById('comparisonChart');
+
+      if (typeof Chart === 'undefined') {
+        var notice = document.createElement('p');
+        notice.className = 'hint';
+        notice.style.textAlign = 'center';
+        notice.style.padding = '2rem 0';
+        notice.textContent =
+          'Could not load the interactive chart (needs internet access for ' +
+          'the Chart.js library). Your numbers above are still correct.';
+        canvas.replaceWith(notice);
+        return;
+      }
+
+      var payload = {{ chart_payload | tojson }};
+      var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+      var datasets = payload.series.map(function (s) {
+        return {
+          label: s.label,
+          data: s.points,
+          borderColor: s.color,
+          backgroundColor: s.color,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHitRadius: 8,
+          borderWidth: 2,
+          tension: 0.1
+        };
+      });
+
+      if (payload.target.length) {
+        datasets.push({
+          label: 'FIRE target',
+          data: payload.target,
+          borderColor: '#B3402F',
+          borderDash: [6, 4],
+          pointRadius: 0,
+          borderWidth: 1.5,
+          tension: 0
+        });
+      }
+
+      var ctx = canvas.getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: { datasets: datasets },
+        options: {
+          responsive: true,
+          interaction: { mode: 'nearest', axis: 'x', intersect: false },
+          scales: {
+            x: {
+              type: 'linear',
+              title: { display: true, text: 'Years from now' },
+              grid: { color: '#E5E9E2' }
+            },
+            y: {
+              ticks: { callback: function (value) { return moneyFmt.format(value); } },
+              grid: { color: '#E5E9E2' }
+            }
+          },
+          plugins: {
+            tooltip: {
+              filter: function (item) { return item.dataset.label !== 'FIRE target'; },
+              callbacks: {
+                title: function (items) { return 'Year ' + items[0].parsed.x; },
+                label: function (item) {
+                  return item.dataset.label + ': ' + moneyFmt.format(item.parsed.y);
+                }
+              }
+            }
+          }
+        }
+      });
+    })();
+    {% endif %}
+  </script>
+
+</body>
+</html>

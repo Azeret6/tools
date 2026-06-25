@@ -71,6 +71,9 @@ needed (though one is there too).
 functions in `savings_target_calculator.py` as the command-line version,
 so both interfaces always agree.
 
+To open this alongside the other tools in this repo from one page, see
+`../hub`.
+
 ## Requirements
 
 Python 3.9+. The core calculation has no external dependencies; the CLI

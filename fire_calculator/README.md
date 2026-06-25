@@ -109,6 +109,9 @@ saved by then, and how much is left to reach your target.
 functions in `fire_calculator.py` as the command-line version, so both
 interfaces always agree.
 
+To open this alongside the other tools in this repo from one page, see
+`../hub`.
+
 ## Output
 
 - **Savings rate** — what share of your income you're investing

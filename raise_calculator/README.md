@@ -4,10 +4,11 @@ Shows what a pay raise is actually worth, long-term, by comparing three
 scenarios:
 
 1. **Current path** -- no raise; your savings stay the same.
-2. **Raise spent** -- you get the raise, but lifestyle inflation absorbs
-   all of it; your savings rate doesn't change. (This scenario plays out
-   identically to "Current path" -- it's included to make the cost of
-   lifestyle inflation visible side by side with the alternative below.)
+2. **Raise kept as cash** -- you get the raise, but don't invest it. It
+   still adds to your net worth, but earns no investment return. Since
+   every amount here is tracked in today's money (real terms), idle
+   cash also loses purchasing power to inflation over time -- it
+   slowly shrinks in real terms rather than just sitting still.
 3. **Raise invested** -- the entire raise is added to your monthly
    savings/investments.
 
@@ -18,6 +19,16 @@ This tool is self-contained and has no dependency on any other tool in
 this repository.
 
 ## Usage
+
+Use whichever interface suits you -- both share the same calculation
+code, so results are always identical:
+
+- **Command line** (`raise_calculator.py`) -- no installation beyond
+  Python itself plus `matplotlib` for the chart.
+- **Browser** (`app.py`) -- a small local Flask app with sliders for
+  the adjustable assumptions and an interactive chart.
+
+### Command-line usage
 
 ```bash
 pip install -r requirements.txt
@@ -40,6 +51,27 @@ You'll be prompted for:
 All amounts should be entered as **net** (take-home) figures, in the same
 currency, in today's money. Working in net, real terms avoids having to
 model any country-specific tax system.
+
+## Web interface
+
+```bash
+pip install -r requirements.txt
+python3 app.py
+```
+
+Then open **http://127.0.0.1:5000** in your browser. Same inputs as the
+command line, as a form: number fields for current savings / raise
+amount / net worth, a checkbox to optionally compare against a FIRE
+target, and sliders (pre-filled with the defaults) for return,
+inflation, and chart horizon. Press **Calculate** to see the comparison
+and chart.
+
+`app.py` has no calculation logic of its own -- it calls the exact same
+functions in `raise_calculator.py` as the command-line version, so both
+interfaces always agree.
+
+To open this alongside the other tools in this repo from one page, see
+`../hub`.
 
 ## Output
 
@@ -67,4 +99,5 @@ consistently across this repository.
 ## Requirements
 
 Python 3.10+. The core calculation has no external dependencies; the
-chart requires `matplotlib` (see `requirements.txt`).
+command-line chart needs `matplotlib`, and the web interface also needs
+`flask` (see `requirements.txt`).

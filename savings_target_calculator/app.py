@@ -7,11 +7,16 @@ the result as JSON for the page's JavaScript to render into the result
 panel and chart.
 """
 
-from flask import Flask, render_template, request, jsonify
+from flask import Blueprint, Flask, render_template, request, jsonify
 
 from savings_target_calculator import SavingsTargetInputs, calculate_savings_target
 
-app = Flask(__name__)
+bp = Blueprint(
+    "savings_target_calculator",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+)
 
 DEFAULTS = {
     "desired_monthly_income": 30000,
@@ -23,12 +28,12 @@ DEFAULTS = {
 }
 
 
-@app.route("/")
+@bp.route("/")
 def index():
-    return render_template("index.html", defaults=DEFAULTS)
+    return render_template("savings_target_calculator/index.html", defaults=DEFAULTS)
 
 
-@app.route("/calculate", methods=["POST"])
+@bp.route("/calculate", methods=["POST"])
 def calculate():
     data = request.get_json(silent=True) or {}
 
@@ -59,5 +64,13 @@ def calculate():
     )
 
 
+def create_app() -> Flask:
+    """Build a standalone Flask app around this tool's blueprint, so it
+    can still be run on its own (`python3 app.py`) exactly as before."""
+    standalone = Flask(__name__)
+    standalone.register_blueprint(bp)
+    return standalone
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    create_app().run(debug=True)
