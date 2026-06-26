@@ -24,7 +24,7 @@ Then open http://127.0.0.1:5000 in your browser.
 
 from __future__ import annotations
 
-from flask import Blueprint, Flask, render_template, request
+from flask import Blueprint, Flask, current_app, render_template, request
 
 import raise_calculator as rc
 
@@ -107,6 +107,8 @@ def index():
         "error": None,
         "chart_payload": None,
         "diffs": None,
+        "hub_tools": current_app.config.get("HUB_TOOLS"),
+        "hub_active": "raise_calculator",
     }
 
     if request.method == "POST":
