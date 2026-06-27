@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Palette Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('color_palette_generator.static', filename='style.css') }}">
+</head>
+<body>
+
+  {% if hub_tools %}
+  <nav class="hub-nav">
+    {% for tool in hub_tools %}
+    <a href="{{ tool.prefix }}/" class="{{ 'active' if hub_active == tool.folder else '' }}">{{ tool.title }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  <div class="sheet">
+    <header class="masthead">
+      <p class="eyebrow">Color theory</p>
+      <h1>Color palette generator</h1>
+      <p class="dek">
+        Pick a base color, a harmony rule, and a style, and get a
+        coordinated palette with hex codes and WCAG contrast info for
+        each color.
+      </p>
+    </header>
+
+    <div class="layout">
+      <div class="panel">
+        <div class="field-group">
+          <label for="base-color">Base color</label>
+          <div class="base-color-row">
+            <input type="color" id="base-color" value="#3378c2">
+            <span class="hex-readout" id="hex-readout">#3378c2</span>
+            <button type="button" class="random-btn" id="random-btn">Random</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Harmony</label>
+          <div class="toggle-group" id="harmony-group">
+            {% for h in harmonies %}
+            <input type="radio" name="harmony" id="harmony-{{ h }}" value="{{ h }}" {% if h == defaults.harmony %}checked{% endif %}>
+            <label for="harmony-{{ h }}">{{ h }}</label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Style</label>
+          <div class="toggle-group" id="style-group">
+            {% for s in styles %}
+            <input type="radio" name="style" id="style-{{ s }}" value="{{ s }}" {% if s == defaults.style %}checked{% endif %}>
+            <label for="style-{{ s }}">{{ s }}</label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="count">Number of colors</label>
+          <div class="count-row">
+            <input type="range" id="count" min="{{ min_colors }}" max="{{ max_colors }}" value="{{ defaults.count }}" step="1">
+            <span class="count-readout" id="count-readout">{{ defaults.count }}</span>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button type="button" class="shuffle-btn" id="shuffle-btn" style="flex:1;">Shuffle</button>
+        </div>
+        <button type="button" class="generate-btn" id="generate-btn">Generate</button>
+
+        <p class="form-error" id="form-error" hidden></p>
+      </div>
+
+      <div class="panel" id="results-panel">
+        <p class="results-heading">Palette</p>
+        <div id="results-content">
+          <p class="results-placeholder">Generating your first palette&hellip;</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('color_palette_generator.static', filename='script.js') }}"></script>
+</body>
+</html>
