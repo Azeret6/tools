@@ -9,10 +9,11 @@ text on a white or black background (WCAG contrast ratio).
 Inputs:
     - Base color (a hue, 0-360 degrees)
     - Harmony: how the other colors relate to the base hue
-        - monochromatic  -- all colors share the base hue; only lightness varies
-        - analogous      -- hues spread evenly across a narrow band next to the base hue
-        - complementary  -- the base hue plus its opposite (180 degrees away)
-        - triadic        -- the base hue plus two hues 120 degrees apart
+        - varied          -- hues spread evenly across the full color wheel, so every color is visually distinct
+        - monochromatic    -- all colors share the base hue; only lightness varies
+        - analogous        -- hues spread evenly across a narrow band next to the base hue
+        - complementary    -- the base hue plus its opposite (180 degrees away)
+        - triadic          -- the base hue plus two hues 120 degrees apart
     - Style: the overall saturation/lightness "mood" of the palette
         - pastel   -- light, softly saturated
         - vibrant  -- bold, highly saturated
@@ -44,13 +45,13 @@ from dataclasses import dataclass, field
 # Constants
 # ---------------------------------------------------------------------------
 
-HARMONIES = ("monochromatic", "analogous", "complementary", "triadic")
+HARMONIES = ("varied", "monochromatic", "analogous", "complementary", "triadic")
 STYLES = ("pastel", "vibrant", "muted", "dark")
 
 MIN_COLORS = 3
 MAX_COLORS = 12
 DEFAULT_COUNT = 6
-DEFAULT_HARMONY = "analogous"
+DEFAULT_HARMONY = "varied"
 DEFAULT_STYLE = "pastel"
 
 # How wide a band (in degrees) the analogous hues are spread across.
@@ -140,9 +141,15 @@ def generate_palette(request: PaletteRequest) -> PaletteResult:
 
 
 def _anchor_hues(base_hue: float, harmony: str, count: int) -> list[float]:
-    """The 'anchor' hues for a given harmony. For analogous, there are as
-    many anchors as requested colors (each gets exactly one tone); for the
-    others, the anchor count is fixed by the harmony's definition."""
+    """The 'anchor' hues for a given harmony. For 'varied' and 'analogous',
+    there are as many anchors as requested colors (each gets exactly one
+    tone); for the others, the anchor count is fixed by the harmony's
+    definition."""
+    if harmony == "varied":
+        if count == 1:
+            return [base_hue]
+        step = 360.0 / count
+        return [(base_hue + i * step) % 360 for i in range(count)]
     if harmony == "monochromatic":
         return [base_hue]
     if harmony == "complementary":
