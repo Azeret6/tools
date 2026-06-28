@@ -37,12 +37,13 @@ contrast ratio against white and black.
 | Input | Description |
 |---|---|
 | Base color | A hue (0-360 degrees), via a color picker on the web, or in degrees on the CLI |
-| Harmony | `monochromatic`, `analogous`, `complementary`, or `triadic` — how the other colors relate to the base hue |
+| Harmony | `varied` (default), `monochromatic`, `analogous`, `complementary`, or `triadic` — how the other colors relate to the base hue |
 | Style | `pastel`, `vibrant`, `muted`, or `dark` — the overall saturation/lightness mood |
 | Count | How many colors to generate (3-12) |
 
 ## How the harmonies work
 
+- **Varied** (default): hues spread evenly across the full color wheel (360 / count degrees apart), so every color is visually distinct — useful when you just want N good-looking, easily-told-apart colors in a given style, rather than tints of one or two hues.
 - **Monochromatic**: all colors share the base hue; only lightness varies (a tint-to-shade ladder).
 - **Analogous**: hues spread evenly across a 60-degree band centered on the base hue; lightness and saturation stay constant.
 - **Complementary**: the base hue plus its opposite (180 degrees away); the requested count is split evenly between the two, each as its own tint-to-shade ladder.
