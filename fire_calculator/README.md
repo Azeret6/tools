@@ -140,9 +140,10 @@ To open this alongside the other tools in this repo from one page, see
 - **Withdrawal rate (4%)** — the widely cited "4% rule" from the Trinity
   Study, found sustainable over a 30-year retirement. 3–5% is a
   reasonable range depending on how conservative you want to be.
-- **Real return = nominal − inflation** — the same simplified approach
-  used by most popular FIRE calculators (rather than the more precise
-  Fisher equation). Accurate enough for long-term planning.
+- **Real return via the Fisher equation** — `(1 + nominal) / (1 + inflation) − 1`,
+  which correctly accounts for the compounding interaction between
+  returns and inflation (rather than the simpler nominal-minus-inflation
+  approximation). Used consistently across every tool in this repository.
 
 ## Limitations
 
