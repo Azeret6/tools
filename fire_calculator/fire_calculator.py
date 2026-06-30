@@ -34,10 +34,12 @@ Default assumptions (overridable by the user):
     3-5%.
 
 Note on the real return calculation:
-    real_return = nominal_return - inflation
-    This is the same simplified approach used by most popular FIRE
-    calculators (rather than the more precise Fisher equation). It is
-    accurate enough for long-term planning purposes.
+    real_return = (1 + nominal_return) / (1 + inflation) - 1
+    This is the Fisher equation, which correctly accounts for the
+    compounding interaction between nominal returns and inflation
+    (rather than the simpler nominal-minus-inflation approximation used
+    by some calculators). All real-return math in this repository uses
+    this same formula for consistency.
 
 This is intentionally a simple, evolving tool. Already supported:
 
@@ -75,6 +77,17 @@ DEFAULT_WITHDRAWAL_RATE_PCT = 4.0
 # Recommended (not enforced) sane range for the withdrawal rate.
 WITHDRAWAL_RATE_MIN_PCT = 3.0
 WITHDRAWAL_RATE_MAX_PCT = 5.0
+
+
+def real_return_pct_from(nominal_pct: float, inflation_pct: float) -> float:
+    """Real annual return implied by a nominal return and an inflation
+    rate, via the Fisher equation: (1+nominal)/(1+inflation) - 1.
+
+    Used everywhere in this module that a real return needs deriving
+    from nominal + inflation, so the two call sites can't drift apart.
+    """
+    return ((1 + nominal_pct / 100) / (1 + inflation_pct / 100) - 1) * 100
+
 
 
 @dataclass
@@ -165,8 +178,8 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
     else:
         fire_number = annual_expenses / withdrawal_rate
 
-    # Simplified real return: nominal minus inflation (see module docstring).
-    real_return_pct = inputs.nominal_return_pct - inputs.inflation_pct
+    # Real return via the Fisher equation (see module docstring).
+    real_return_pct = real_return_pct_from(inputs.nominal_return_pct, inputs.inflation_pct)
     annual_real_return = real_return_pct / 100
 
     months_to_fire = _months_to_reach_target(
@@ -279,7 +292,7 @@ def savings_rate_reference_table(
     Returns a list of dicts: {"savings_rate_pct": ..., "years": ... or None}.
     `years` is None if that savings rate never reaches the target.
     """
-    real_return_pct = nominal_return_pct - inflation_pct
+    real_return_pct = real_return_pct_from(nominal_return_pct, inflation_pct)
     annual_real_return = real_return_pct / 100
     withdrawal_rate = withdrawal_rate_pct / 100
 
