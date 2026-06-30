@@ -14,6 +14,7 @@ const inflationDisplay = document.getElementById("inflation_display");
 
 let chart = null;
 let debounceTimer = null;
+let currentTarget = 0;
 
 function fmt(n) {
   return Math.round(n).toLocaleString("en-US");
@@ -121,14 +122,14 @@ function renderChart(data) {
 
   const labels = data.projection.map((p) => (p.month / 12).toFixed(1));
   const values = data.projection.map((p) => Math.round(p.value));
-  const target = data.target_amount;
+  currentTarget = data.target_amount;
 
   const ctx = document.getElementById("projection_chart");
 
   if (chart) {
     chart.data.labels = labels;
     chart.data.datasets[0].data = values;
-    chart.data.datasets[1].data = labels.map(() => target);
+    chart.data.datasets[1].data = labels.map(() => currentTarget);
     chart.update();
     return;
   }
@@ -141,8 +142,8 @@ function renderChart(data) {
         {
           label: "Projected net worth",
           data: values,
-          borderColor: "#2c5f8a",
-          backgroundColor: "rgba(44, 95, 138, 0.08)",
+          borderColor: "#2F6F52",
+          backgroundColor: "rgba(47, 111, 82, 0.08)",
           fill: true,
           tension: 0.15,
           pointRadius: 0,
@@ -150,8 +151,8 @@ function renderChart(data) {
         },
         {
           label: "Target",
-          data: labels.map(() => target),
-          borderColor: "#b3402a",
+          data: labels.map(() => currentTarget),
+          borderColor: "#B3402F",
           borderDash: [6, 5],
           pointRadius: 0,
           borderWidth: 1.5,
@@ -175,7 +176,17 @@ function renderChart(data) {
         legend: { position: "bottom" },
         tooltip: {
           callbacks: {
-            label: (item) => `${item.dataset.label}: ${Number(item.parsed.y).toLocaleString("en-US")}`,
+            label: (item) => {
+              const saved = item.parsed.y;
+              if (item.dataset.label !== "Projected net worth") {
+                return `${item.dataset.label}: ${Number(saved).toLocaleString("en-US")}`;
+              }
+              const remaining = Math.max(currentTarget - saved, 0);
+              return [
+                `Projected saved: ${Number(saved).toLocaleString("en-US")}`,
+                `Remaining to target: ${Number(remaining).toLocaleString("en-US")}`,
+              ];
+            },
           },
         },
       },
