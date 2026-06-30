@@ -38,11 +38,12 @@ These mirror the defaults used elsewhere in this repository (see
 fire_calculator for the underlying reasoning and sources).
 
 Note on the real return calculation:
-    real_return = nominal_return - inflation
-This is a simplified approximation (rather than the Fisher equation),
-consistent with the rest of this repository. The same logic is applied to
-idle cash: its nominal return is 0%, so its real return is simply
-`-inflation` (i.e. it loses value at the inflation rate).
+    real_return = (1 + nominal_return) / (1 + inflation) - 1
+This is the Fisher equation, used consistently across this repository
+(see fire_calculator). The same formula is applied to idle cash: its
+nominal return is 0%, so its real return is `1/(1+inflation) - 1`,
+i.e. it loses value at slightly less than the raw inflation rate (the
+Fisher equation's compounding correction applies here too).
 
 After computing the result, this script opens a chart (via matplotlib)
 comparing net worth growth across the three scenarios. Requires
@@ -70,6 +71,16 @@ WITHDRAWAL_RATE_MAX_PCT = 5.0
 
 # Cap for the numeric years-to-target search, regardless of chart horizon.
 MAX_SOLVER_YEARS = 100
+
+
+def real_return_pct_from(nominal_pct: float, inflation_pct: float) -> float:
+    """Real annual return implied by a nominal return and an inflation
+    rate, via the Fisher equation: (1+nominal)/(1+inflation) - 1.
+    Mirrors the identically-named helper in fire_calculator.py, kept
+    here too since this tool has no dependency on that module.
+    """
+    return ((1 + nominal_pct / 100) / (1 + inflation_pct / 100) - 1) * 100
+
 
 
 @dataclass
@@ -107,7 +118,7 @@ class RaiseComparisonResult:
     """Output of the full scenario comparison."""
 
     real_return_pct: float       # Real return on invested money
-    cash_real_return_pct: float  # Real return on idle cash (= -inflation)
+    cash_real_return_pct: float  # Real return on idle cash (0% nominal, via Fisher)
     fire_target: float | None
     horizon_years: int
     scenarios: list[ScenarioResult] = field(default_factory=list)
@@ -129,11 +140,12 @@ def calculate_raise_scenarios(inputs: RaiseInputs) -> RaiseComparisonResult:
     if inputs.raise_amount < 0:
         raise ValueError("raise_amount cannot be negative.")
 
-    real_return_pct = inputs.nominal_return_pct - inputs.inflation_pct
+    # Real return via the Fisher equation (see module docstring).
+    real_return_pct = real_return_pct_from(inputs.nominal_return_pct, inputs.inflation_pct)
     monthly_rate = (1 + real_return_pct / 100) ** (1 / 12) - 1
 
-    # Idle cash earns 0% nominal -- in real terms that's just -inflation.
-    cash_real_return_pct = -inputs.inflation_pct
+    # Idle cash earns 0% nominal -- the Fisher equation still applies.
+    cash_real_return_pct = real_return_pct_from(0.0, inputs.inflation_pct)
     cash_monthly_rate = (1 + cash_real_return_pct / 100) ** (1 / 12) - 1
 
     target = _resolve_target(inputs)
