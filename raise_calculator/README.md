@@ -92,9 +92,10 @@ To open this alongside the other tools in this repo from one page, see
 - Safe withdrawal rate: **4%**
 
 These mirror the defaults used in `fire_calculator` (see that tool's
-README for the underlying reasoning and sources). Real return is computed
-as `nominal_return - inflation`, a simplified approximation used
-consistently across this repository.
+README for the underlying reasoning and sources). Real return is
+computed via the Fisher equation, `(1 + nominal) / (1 + inflation) − 1`,
+used consistently across this repository -- including for idle cash
+(modeled as 0% nominal return).
 
 ## Requirements
 
