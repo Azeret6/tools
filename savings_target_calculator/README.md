@@ -20,7 +20,9 @@ your chosen savings horizon.
 The desired income, the target amount, and the required monthly saving
 are all expressed in today's money. The nominal return and inflation
 rate you enter are only used to derive the real rate of return used for
-growth - you never need to think in inflated future numbers.
+growth - you never need to think in inflated future numbers. The real
+return is computed via the Fisher equation, `(1 + nominal) / (1 + inflation) − 1`,
+used consistently across every tool in this repository.
 
 This tool is standalone: it does not import anything from
 `fire_calculator` or any other tool in this repo.
