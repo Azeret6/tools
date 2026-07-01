@@ -46,7 +46,6 @@ bp = Blueprint(
     __name__,
     template_folder="templates",
     static_folder="static",
-    static_url_path="/fire-calculator/static",
 )
 
 
@@ -244,12 +243,12 @@ def index():
 
 
 def create_app() -> Flask:
-    """Create and return a standalone Flask app (used when running directly
-    with `python3 app.py`). In the hub, `bp` is imported and registered
-    there instead."""
-    application = Flask(__name__)
-    application.register_blueprint(bp, url_prefix="/")
-    return application
+    """Build a standalone Flask app around this tool's blueprint, so it
+    can still be run on its own (`python3 app.py`). The hub instead
+    imports `bp` directly and mounts it alongside the other tools."""
+    standalone = Flask(__name__)
+    standalone.register_blueprint(bp)
+    return standalone
 
 
 if __name__ == "__main__":
