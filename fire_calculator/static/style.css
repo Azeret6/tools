@@ -321,9 +321,8 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .chart-wrap {
-  max-width: 64rem;
-  margin: 1.5rem auto 0;
-  height: 480px;
+  margin-top: 1rem;
+  padding: 0 1.75rem 1.5rem;
 }
 
 .error-banner {
@@ -431,34 +430,22 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
-/* ----------------------------------------------------------------
-   Tool nav (shown only when running inside the hub)
-   ---------------------------------------------------------------- */
+/* Hub navigation bar (only visible when running inside hub.py) */
 .tool-nav {
   max-width: 64rem;
   margin: 0 auto;
-  padding-top: 1.25rem;
+  padding: 0.75rem 1.5rem;
   display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
-  gap: 1.25rem;
+}
+.tool-nav-link {
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  letter-spacing: 0.04em;
-}
-
-.tool-nav-link {
   color: var(--mute);
   text-decoration: none;
-  padding-bottom: 0.3rem;
-  border-bottom: 2px solid transparent;
+  letter-spacing: 0.03em;
 }
-
-.tool-nav-link:hover {
-  color: var(--ink);
-}
-
-.tool-nav-link.active {
-  color: var(--ledger-dark);
-  font-weight: 600;
-  border-bottom-color: var(--ledger);
-}
+.tool-nav-link:hover { color: var(--ink); }
+.tool-nav-link.active { color: var(--ledger-dark); font-weight: 600; border-bottom: 1px solid var(--ledger-dark); }
