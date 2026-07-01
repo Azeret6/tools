@@ -33,12 +33,21 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
+import os
+import threading
+import webbrowser
 
-from flask import Flask, render_template, request
+from flask import Blueprint, Flask, render_template, request
 
 import fire_calculator as fc
 
-app = Flask(__name__)
+bp = Blueprint(
+    "fire_calculator",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+    static_url_path="/fire-calculator/static",
+)
 
 
 def _parse_form_float(form, name: str, default: float | None = None) -> float | None:
@@ -96,7 +105,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
     }
 
 
-@app.route("/", methods=["GET", "POST"])
+@bp.route("/", methods=["GET", "POST"])
 def index():
     values = {
         "current_net_worth": "",
@@ -228,8 +237,22 @@ def index():
         row["years_display"] = f"{row['years']:.1f}" if row["years"] is not None else "not reachable"
     context["reference_table"] = reference_rows
 
-    return render_template("index.html", **context)
+    from flask import current_app
+    context["hub_tools"] = current_app.config.get("HUB_TOOLS")
+    context["hub_active"] = "fire_calculator"
+    return render_template("fire_calculator/index.html", **context)
+
+
+def create_app() -> Flask:
+    """Create and return a standalone Flask app (used when running directly
+    with `python3 app.py`). In the hub, `bp` is imported and registered
+    there instead."""
+    application = Flask(__name__)
+    application.register_blueprint(bp, url_prefix="/")
+    return application
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
+    create_app().run(debug=True)
