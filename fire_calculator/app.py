@@ -33,20 +33,12 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
-import os
-import threading
-import webbrowser
 
-from flask import Blueprint, Flask, current_app, render_template, request
+from flask import Flask, render_template, request
 
 import fire_calculator as fc
 
-bp = Blueprint(
-    "fire_calculator",
-    __name__,
-    template_folder="templates",
-    static_folder="static",
-)
+app = Flask(__name__)
 
 
 def _parse_form_float(form, name: str, default: float | None = None) -> float | None:
@@ -104,7 +96,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
     }
 
 
-@bp.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 def index():
     values = {
         "current_net_worth": "",
@@ -126,8 +118,6 @@ def index():
         "chart_payload": None,
         "history_count": None,
         "reference_table": None,
-        "hub_tools": current_app.config.get("HUB_TOOLS"),
-        "hub_active": "fire_calculator",
     }
 
     if request.method == "POST":
@@ -150,7 +140,7 @@ def index():
 
         history = None
         as_of_date = _dt.date.today()
-        current_net_worth = _parse_form_float(form, "current_net_worth")
+        current_net_worth = _parse_form_float(form, "current_net_worth", default=0.0)
 
         uploaded = request.files.get("savings_diary")
         if uploaded and uploaded.filename:
@@ -175,10 +165,10 @@ def index():
         desired_monthly_income = _parse_form_float(form, "desired_monthly_income")
 
         if not context["error"] and (
-            current_net_worth is None or annual_income is None or monthly_savings is None
+            annual_income is None or monthly_savings is None
         ):
             context["error"] = (
-                "Please fill in current net worth, annual income, and monthly savings."
+                "Please fill in annual income and monthly savings."
             )
 
         if not context["error"] and values["partial_fire"] and not (
@@ -238,25 +228,8 @@ def index():
         row["years_display"] = f"{row['years']:.1f}" if row["years"] is not None else "not reachable"
     context["reference_table"] = reference_rows
 
-    return render_template("fire_calculator/index.html", **context)
-
-
-def create_app() -> Flask:
-    """Build a standalone Flask app around this tool's blueprint, so it
-    can still be run on its own (`python3 app.py`) exactly as before.
-    The hub instead imports `bp` directly and mounts it alongside the
-    other tools."""
-    standalone = Flask(__name__)
-    standalone.register_blueprint(bp)
-    return standalone
+    return render_template("index.html", **context)
 
 
 if __name__ == "__main__":
-    # Open the app in the system's default browser shortly after the
-    # server starts -- avoids it opening inside VS Code's "Simple
-    # Browser" panel instead of a real browser window. The env check
-    # ensures this only fires once (not once per Werkzeug reloader
-    # process) when running with debug=True.
-    if not os.environ.get("WERKZEUG_RUN_MAIN"):
-        threading.Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
-    create_app().run(debug=True)
+    app.run(debug=True)
