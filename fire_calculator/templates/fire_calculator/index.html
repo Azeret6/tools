@@ -12,7 +12,7 @@
 
   {% if hub_tools %}
   <nav class="tool-nav">
-    <a href="/" class="tool-nav-link">← Všechny nástroje</a>
+    <a href="/" class="tool-nav-link">&larr; All tools</a>
     {% for t in hub_tools %}
     <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
     {% endfor %}
