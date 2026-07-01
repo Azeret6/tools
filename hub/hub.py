@@ -29,7 +29,10 @@ That's it -- no other file needs to change.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+import threading
+import webbrowser
 from pathlib import Path
 
 from flask import Flask, render_template
@@ -101,4 +104,11 @@ def create_app() -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
+    # Open the app in the system's default browser shortly after the
+    # server starts -- avoids it opening inside VS Code's "Simple
+    # Browser" panel instead of a real browser window. The env check
+    # ensures this only fires once (not once per Werkzeug reloader
+    # process) when running with debug=True.
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
     app.run(debug=True)
