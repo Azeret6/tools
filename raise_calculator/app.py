@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 """
-Raise Calculator -- Web UI
-============================
+FIRE Calculator -- Web UI
+==========================
 
-A small Flask web app providing the same raise-impact calculation as
-`raise_calculator.py`, with a browser form (sliders for the adjustable
-assumptions, an interactive chart) instead of command-line prompts.
+A small Flask web app providing the same FIRE (Financial Independence)
+calculation as `fire_calculator.py`, with a browser form (sliders for
+the adjustable assumptions, an interactive chart) instead of
+command-line prompts.
 
 This file contains NO calculation logic of its own. It only collects
 input from an HTML form, hands it to the functions in
-`raise_calculator.py` (the single source of truth, shared with the CLI),
+`fire_calculator.py` (the single source of truth, shared with the CLI),
 and renders the result. The CLI script keeps working exactly as before
 -- this is an additional way to use the same calculator, not a
 replacement.
 
-Run it on its own with:
+The chart itself is rendered client-side (Chart.js, via CDN) for
+interactivity (hover to see exact values at any point in time). This
+file only computes the data points -- all the underlying math is still
+exactly the same shared calculation, just serialized as JSON instead of
+drawn as a static image.
+
+Run it with:
 
     pip install -r requirements.txt
     python3 app.py
@@ -24,12 +31,18 @@ Then open http://127.0.0.1:5000 in your browser.
 
 from __future__ import annotations
 
+import datetime as _dt
+import io
+import os
+import threading
+import webbrowser
+
 from flask import Blueprint, Flask, current_app, render_template, request
 
-import raise_calculator as rc
+import fire_calculator as fc
 
 bp = Blueprint(
-    "raise_calculator",
+    "fire_calculator",
     __name__,
     template_folder="templates",
     static_folder="static",
@@ -48,151 +61,202 @@ def _parse_form_float(form, name: str, default: float | None = None) -> float | 
         return default
 
 
-def _build_chart_payload(result: rc.RaiseComparisonResult) -> dict:
+def _to_epoch_ms(d: _dt.date) -> int:
+    """Convert a date to epoch milliseconds (UTC), for plotting on a
+    Chart.js linear x-axis (avoids needing a date-adapter plugin while
+    still keeping points correctly spaced in real time)."""
+    return int(_dt.datetime(d.year, d.month, d.day, tzinfo=_dt.timezone.utc).timestamp() * 1000)
+
+
+def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) -> dict:
     """Compute the JSON-serializable data the client-side chart needs:
-    one series per scenario, plus an optional FIRE target line. Uses the
-    same scenario colors as the matplotlib chart in raise_calculator.py,
-    so the web and CLI versions look consistent."""
-    colors = {
-        "current_path": "#475569",
-        "raise_uninvested": "#d97706",
-        "raise_invested": "#16a34a",
-    }
+    the projection curve, the recorded history (if any), a horizontal
+    target line, and the crossing-point marker."""
+    dates, balances = fc.compute_projection_series(inputs, result)
+    projection_points = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates, balances)]
 
-    series = []
-    for scenario in result.scenarios:
-        series.append(
-            {
-                "key": scenario.key,
-                "label": scenario.label,
-                "color": colors.get(scenario.key, "#2563eb"),
-                "points": [{"x": year, "y": round(value, 2)} for year, value in scenario.net_worth_by_year],
-                "yearsToTarget": scenario.years_to_target,
-            }
-        )
+    history_points = []
+    if history:
+        history_points = [{"x": _to_epoch_ms(d), "y": v} for d, v in history]
 
+    all_x = [p["x"] for p in projection_points] + [p["x"] for p in history_points]
     target_points = []
-    if result.fire_target is not None:
+    if all_x:
         target_points = [
-            {"x": 0, "y": result.fire_target},
-            {"x": result.horizon_years, "y": result.fire_target},
+            {"x": min(all_x), "y": result.fire_number},
+            {"x": max(all_x), "y": result.fire_number},
         ]
 
+    marker_point = None
+    if result.months_to_fire is not None and result.fire_date is not None:
+        marker_point = {
+            "x": _to_epoch_ms(result.fire_date),
+            "y": result.fire_number,
+            "label": f"{result.fire_date.strftime('%B %Y')} ({result.years_part}y {result.months_part}m)",
+        }
+
     return {
-        "series": series,
+        "projection": projection_points,
+        "history": history_points,
         "target": target_points,
-        "fireTarget": result.fire_target,
-        "horizonYears": result.horizon_years,
+        "marker": marker_point,
+        "fireNumber": result.fire_number,
     }
 
 
 @bp.route("/", methods=["GET", "POST"])
 def index():
     values = {
-        "current_monthly_savings": "",
-        "raise_amount": "",
-        "current_net_worth": "0",
-        "compare_fire": False,
-        "annual_expenses": "",
-        "withdrawal_rate_pct": rc.DEFAULT_WITHDRAWAL_RATE_PCT,
-        "nominal_return_pct": rc.DEFAULT_NOMINAL_RETURN_PCT,
-        "inflation_pct": rc.DEFAULT_INFLATION_PCT,
-        "projection_years": rc.DEFAULT_PROJECTION_YEARS,
+        "current_net_worth": "",
+        "annual_income": "",
+        "monthly_savings": "",
+        "nominal_return_pct": fc.DEFAULT_NOMINAL_RETURN_PCT,
+        "inflation_pct": fc.DEFAULT_INFLATION_PCT,
+        "withdrawal_rate_pct": fc.DEFAULT_WITHDRAWAL_RATE_PCT,
+        "partial_fire": False,
+        "desired_monthly_income": "",
     }
     context = {
         "values": values,
-        "withdrawal_min": rc.WITHDRAWAL_RATE_MIN_PCT,
-        "withdrawal_max": rc.WITHDRAWAL_RATE_MAX_PCT,
+        "withdrawal_min": fc.WITHDRAWAL_RATE_MIN_PCT,
+        "withdrawal_max": fc.WITHDRAWAL_RATE_MAX_PCT,
         "result": None,
+        "display": None,
         "error": None,
         "chart_payload": None,
-        "diffs": None,
+        "history_count": None,
+        "reference_table": None,
         "hub_tools": current_app.config.get("HUB_TOOLS"),
-        "hub_active": "raise_calculator",
+        "hub_active": "fire_calculator",
     }
 
     if request.method == "POST":
         form = request.form
 
-        values["current_monthly_savings"] = form.get("current_monthly_savings", "")
-        values["raise_amount"] = form.get("raise_amount", "")
-        values["current_net_worth"] = form.get("current_net_worth", "0")
-        values["compare_fire"] = form.get("compare_fire") == "on"
-        values["annual_expenses"] = form.get("annual_expenses", "")
-        values["withdrawal_rate_pct"] = _parse_form_float(
-            form, "withdrawal_rate_pct", values["withdrawal_rate_pct"]
-        )
+        values["current_net_worth"] = form.get("current_net_worth", "")
+        values["annual_income"] = form.get("annual_income", "")
+        values["monthly_savings"] = form.get("monthly_savings", "")
         values["nominal_return_pct"] = _parse_form_float(
             form, "nominal_return_pct", values["nominal_return_pct"]
         )
         values["inflation_pct"] = _parse_form_float(
             form, "inflation_pct", values["inflation_pct"]
         )
-        values["projection_years"] = _parse_form_float(
-            form, "projection_years", values["projection_years"]
+        values["withdrawal_rate_pct"] = _parse_form_float(
+            form, "withdrawal_rate_pct", values["withdrawal_rate_pct"]
         )
+        values["partial_fire"] = form.get("partial_fire") == "on"
+        values["desired_monthly_income"] = form.get("desired_monthly_income", "")
 
-        current_monthly_savings = _parse_form_float(form, "current_monthly_savings")
-        raise_amount = _parse_form_float(form, "raise_amount")
-        current_net_worth = _parse_form_float(form, "current_net_worth", 0.0)
-        annual_expenses = (
-            _parse_form_float(form, "annual_expenses") if values["compare_fire"] else None
-        )
+        history = None
+        as_of_date = _dt.date.today()
+        current_net_worth = _parse_form_float(form, "current_net_worth")
 
-        if current_monthly_savings is None or raise_amount is None:
-            context["error"] = "Please fill in current monthly savings and the raise amount."
-        elif values["compare_fire"] and not annual_expenses:
+        uploaded = request.files.get("savings_diary")
+        if uploaded and uploaded.filename:
+            try:
+                text_stream = io.TextIOWrapper(uploaded.stream, encoding="utf-8")
+                history = fc.parse_savings_csv(text_stream)
+            except ValueError as exc:
+                context["error"] = f"Could not read the savings diary: {exc}"
+
+            if history:
+                as_of_date, current_net_worth = history[-1]
+                values["current_net_worth"] = current_net_worth
+                context["history_count"] = len(history)
+            elif not context["error"]:
+                context["error"] = (
+                    "No valid rows found in that savings diary -- check it has "
+                    "'date' and 'net_worth' columns."
+                )
+
+        annual_income = _parse_form_float(form, "annual_income")
+        monthly_savings = _parse_form_float(form, "monthly_savings")
+        desired_monthly_income = _parse_form_float(form, "desired_monthly_income")
+
+        if not context["error"] and (
+            current_net_worth is None or annual_income is None or monthly_savings is None
+        ):
             context["error"] = (
-                "Enter annual expenses for the FIRE comparison, or untick the checkbox "
-                "to skip it."
+                "Please fill in current net worth, annual income, and monthly savings."
+            )
+
+        if not context["error"] and values["partial_fire"] and not (
+            desired_monthly_income and desired_monthly_income > 0
+        ):
+            context["error"] = (
+                "Please enter a desired monthly amount for partial FIRE "
+                "(or untick the checkbox to calculate full FIRE instead)."
             )
 
         if not context["error"]:
             try:
-                inputs = rc.RaiseInputs(
-                    current_monthly_savings=current_monthly_savings,
-                    raise_amount=raise_amount,
+                inputs = fc.FireInputs(
                     current_net_worth=current_net_worth,
+                    annual_income=annual_income,
+                    monthly_savings=monthly_savings,
                     nominal_return_pct=values["nominal_return_pct"],
                     inflation_pct=values["inflation_pct"],
-                    projection_years=int(values["projection_years"]),
-                    annual_expenses=annual_expenses,
                     withdrawal_rate_pct=values["withdrawal_rate_pct"],
+                    as_of_date=as_of_date,
+                    partial_fire=values["partial_fire"],
+                    desired_monthly_income=desired_monthly_income,
                 )
-                result = rc.calculate_raise_scenarios(inputs)
+                result = fc.calculate_fire(inputs)
             except ValueError as exc:
                 context["error"] = str(exc)
             else:
                 context["result"] = result
-                context["chart_payload"] = _build_chart_payload(result)
+                context["display"] = {
+                    "savings_rate_pct": f"{result.savings_rate_pct:.1f}",
+                    "annual_expenses": f"{result.annual_expenses:,.0f}",
+                    "fire_number": f"{result.fire_number:,.0f}",
+                    "real_return_pct": f"{result.real_return_pct:.1f}",
+                    "reachable": result.months_to_fire is not None,
+                    "is_partial": result.is_partial,
+                }
+                if result.months_to_fire is not None:
+                    context["display"]["years"] = result.years_part
+                    context["display"]["months"] = result.months_part
+                    context["display"]["fire_date"] = result.fire_date.strftime("%B %Y")
+                if result.is_partial:
+                    context["display"]["desired_monthly_income_today"] = (
+                        f"{result.desired_monthly_income_today:,.0f}"
+                    )
+                    if result.desired_monthly_income_future is not None:
+                        context["display"]["desired_monthly_income_future"] = (
+                            f"{result.desired_monthly_income_future:,.0f}"
+                        )
+                        context["display"]["future_year"] = result.fire_date.year
 
-                if result.fire_target is not None:
-                    by_key = {s.key: s for s in result.scenarios}
-                    diffs = []
-                    pairs = [
-                        ("Investing vs. the current path", by_key["current_path"], by_key["raise_invested"]),
-                        ("Investing vs. keeping it as cash", by_key["raise_uninvested"], by_key["raise_invested"]),
-                    ]
-                    for label, slower, faster in pairs:
-                        if slower.years_to_target is not None and faster.years_to_target is not None:
-                            diff = slower.years_to_target - faster.years_to_target
-                            if diff > 0.05:
-                                years_part = int(diff)
-                                months_part = round((diff - years_part) * 12)
-                                diffs.append(f"{label}: {years_part}y {months_part}m sooner.")
-                    context["diffs"] = diffs
+                context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
-    return render_template("raise_calculator/index.html", **context)
+    reference_rows = fc.savings_rate_reference_table(
+        values["nominal_return_pct"], values["inflation_pct"], values["withdrawal_rate_pct"]
+    )
+    for row in reference_rows:
+        row["years_display"] = f"{row['years']:.1f}" if row["years"] is not None else "not reachable"
+    context["reference_table"] = reference_rows
+
+    return render_template("fire_calculator/index.html", **context)
 
 
 def create_app() -> Flask:
     """Build a standalone Flask app around this tool's blueprint, so it
-    can still be run on its own (`python3 app.py`). The hub instead
-    imports `bp` directly and mounts it alongside the other tools."""
+    can still be run on its own (`python3 app.py`) exactly as before.
+    The hub instead imports `bp` directly and mounts it alongside the
+    other tools."""
     standalone = Flask(__name__)
     standalone.register_blueprint(bp)
     return standalone
 
 
 if __name__ == "__main__":
+    # Open the app in the system's default browser shortly after the
+    # server starts -- avoids it opening inside VS Code's "Simple
+    # Browser" panel instead of a real browser window. The env check
+    # ensures this only fires once (not once per Werkzeug reloader
+    # process) when running with debug=True.
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
     create_app().run(debug=True)
