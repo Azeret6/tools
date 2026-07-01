@@ -42,7 +42,7 @@ from flask import Blueprint, Flask, current_app, render_template, request
 import fire_calculator as fc
 
 bp = Blueprint(
-    "fire_calculator",
+    "raise_calculator",
     __name__,
     template_folder="templates",
     static_folder="static",
