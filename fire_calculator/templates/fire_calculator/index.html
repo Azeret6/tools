@@ -12,9 +12,9 @@
 
   {% if hub_tools %}
   <nav class="tool-nav">
-    <a href="/" class="tool-nav-link">&larr; All tools</a>
+    <a href="/" class="tool-nav-link">← Všechny nástroje</a>
     {% for t in hub_tools %}
-    <a href="{{ t.prefix }}/" class="tool-nav-link{{ ' active' if t.folder == hub_active else '' }}">{{ t.title }}</a>
+    <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
     {% endfor %}
   </nav>
   {% endif %}
@@ -183,6 +183,12 @@
             {% endif %}
           </div>
         </div>
+
+        {% if chart_payload %}
+          <div class="chart-wrap">
+            <canvas id="projectionChart" height="280"></canvas>
+          </div>
+        {% endif %}
       {% else %}
         <div class="empty-state">
           <p>Fill in your numbers and press Calculate.</p>
@@ -192,12 +198,6 @@
     </section>
 
   </form>
-
-  {% if chart_payload %}
-    <div class="chart-wrap">
-      <canvas id="projectionChart" height="480"></canvas>
-    </div>
-  {% endif %}
 
   {% if reference_table %}
   <section class="panel reference" aria-label="Savings rate reference">
@@ -261,7 +261,7 @@
       var payload = {{ chart_payload | tojson }};
       var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
       var dateFmt = function (ms) {
-        return new Date(ms).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
       };
 
       var datasets = [];
@@ -319,7 +319,6 @@
         data: { datasets: datasets },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
           interaction: { mode: 'nearest', axis: 'x', intersect: false },
           scales: {
             x: {
