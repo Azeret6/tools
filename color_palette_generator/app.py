@@ -1,3 +1,7 @@
+import os
+import threading
+import webbrowser
+
 from flask import Blueprint, Flask, current_app, render_template, request, jsonify
 
 import color_palette_generator as cpg
@@ -79,4 +83,11 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
+    # Open the app in the system's default browser shortly after the
+    # server starts -- avoids it opening inside VS Code's "Simple
+    # Browser" panel instead of a real browser window. The env check
+    # ensures this only fires once (not once per Werkzeug reloader
+    # process) when running with debug=True.
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
     create_app().run(debug=True)
