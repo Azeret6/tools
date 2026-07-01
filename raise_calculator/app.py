@@ -127,7 +127,7 @@ def index():
         "history_count": None,
         "reference_table": None,
         "hub_tools": current_app.config.get("HUB_TOOLS"),
-        "hub_active": "fire_calculator",
+        "hub_active": "raise_calculator",
     }
 
     if request.method == "POST":
