@@ -73,6 +73,7 @@ from dataclasses import dataclass, field
 DEFAULT_NOMINAL_RETURN_PCT = 8.0
 DEFAULT_INFLATION_PCT = 3.0
 DEFAULT_WITHDRAWAL_RATE_PCT = 4.0
+DEFAULT_SAVINGS_GROWTH_PCT = 0.0   # 0 = disabled (no annual savings increase)
 
 # Recommended (not enforced) sane range for the withdrawal rate.
 WITHDRAWAL_RATE_MIN_PCT = 3.0
@@ -112,6 +113,16 @@ class FireInputs:
     # (e.g. a pension top-up).
     partial_fire: bool = False
     desired_monthly_income: float | None = None  # Today's money; only used if partial_fire=True
+    # Optional: nominal annual % by which the monthly savings amount grows each year.
+    # 0 (the default) means constant savings, preserving the original closed-form behaviour.
+    # Positive values cause the solver to use a month-by-month simulation instead.
+    savings_growth_pct: float = DEFAULT_SAVINGS_GROWTH_PCT
+    # Coast FIRE: the earliest point where, even if you stopped saving completely,
+    # compound growth alone would reach your FIRE number by `retirement_age`.
+    # Both fields must be set for the Coast FIRE calculation to run.
+    coast_fire: bool = False
+    current_age: int | None = None
+    retirement_age: int | None = None
 
 
 @dataclass
@@ -121,16 +132,23 @@ class FireResult:
     annual_expenses: float
     fire_number: float              # the target actually used (full or partial)
     real_return_pct: float
-    months_to_fire: float | None   # None if the target is unreachable
+    real_savings_growth_pct: float = 0.0   # derived from inputs.savings_growth_pct via Fisher
+    months_to_fire: float | None = None    # None if the target is unreachable
     years_part: int = 0
     months_part: int = 0
     fire_date: _dt.date | None = None
-    savings_rate_pct: float = 0.0   # monthly_savings * 12 / annual_income, as a %
+    savings_rate_pct: float = 0.0
     is_partial: bool = False
     # Only set when is_partial=True:
-    desired_monthly_income_today: float | None = None    # echo of the input (today's money)
-    desired_monthly_income_future: float | None = None   # same purchasing power, expressed in
-                                                           # the (inflated) money of the year it's reached
+    desired_monthly_income_today: float | None = None
+    desired_monthly_income_future: float | None = None
+    # Coast FIRE (only set when inputs.coast_fire=True and both ages provided):
+    coast_fire_number: float | None = None
+    already_coast: bool = False          # current_net_worth >= coast_fire_number
+    months_to_coast: float | None = None
+    years_coast: int = 0
+    months_coast: int = 0
+    coast_date: _dt.date | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -182,12 +200,34 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
     real_return_pct = real_return_pct_from(inputs.nominal_return_pct, inputs.inflation_pct)
     annual_real_return = real_return_pct / 100
 
-    months_to_fire = _months_to_reach_target(
-        starting_balance=inputs.current_net_worth,
-        monthly_contribution=inputs.monthly_savings,
-        annual_return=annual_real_return,
-        target=fire_number,
-    )
+    # Real annual growth rate for the savings amount.
+    # 0% input → real growth = 0 (constant savings in real terms, backward-compatible).
+    # Any positive nominal rate X is converted via Fisher equation, which typically
+    # yields a slightly negative real rate when X < inflation (e.g. 2% nominal with
+    # 3% inflation → −0.97% real, meaning savings keep up less than fully with inflation).
+    if abs(inputs.savings_growth_pct) < 1e-9:
+        real_savings_growth_pct = 0.0
+    else:
+        real_savings_growth_pct = real_return_pct_from(inputs.savings_growth_pct, inputs.inflation_pct)
+    annual_real_savings_growth = real_savings_growth_pct / 100
+
+    # Choose solver: closed-form when savings are constant, simulation when
+    # they grow (the closed-form assumes a fixed monthly contribution).
+    if abs(annual_real_savings_growth) < 1e-9:
+        months_to_fire = _months_to_reach_target(
+            starting_balance=inputs.current_net_worth,
+            monthly_contribution=inputs.monthly_savings,
+            annual_return=annual_real_return,
+            target=fire_number,
+        )
+    else:
+        months_to_fire = _simulate_to_target(
+            starting_balance=inputs.current_net_worth,
+            monthly_savings=inputs.monthly_savings,
+            annual_real_return=annual_real_return,
+            target=fire_number,
+            annual_real_savings_growth=annual_real_savings_growth,
+        )
 
     years_part, months_part = (0, 0)
     fire_date = None
@@ -201,10 +241,54 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
                 (1 + inputs.inflation_pct / 100) ** years_elapsed
             )
 
+    # -----------------------------------------------------------------------
+    # Coast FIRE (optional): the portfolio value at which compound growth
+    # alone -- with zero further contributions -- reaches `fire_number` by
+    # `retirement_age`.
+    # -----------------------------------------------------------------------
+    coast_fire_number = None
+    already_coast = False
+    months_to_coast = None
+    years_coast = months_coast = 0
+    coast_date = None
+
+    if (
+        inputs.coast_fire
+        and inputs.current_age is not None
+        and inputs.retirement_age is not None
+        and inputs.retirement_age > inputs.current_age
+    ):
+        years_to_retirement = inputs.retirement_age - inputs.current_age
+        coast_fire_number = fire_number / (1 + annual_real_return) ** years_to_retirement
+
+        if inputs.current_net_worth >= coast_fire_number:
+            already_coast = True
+        else:
+            # Time needed to reach coast_fire_number (savings growth applies here too).
+            if abs(annual_real_savings_growth) < 1e-9:
+                months_to_coast = _months_to_reach_target(
+                    starting_balance=inputs.current_net_worth,
+                    monthly_contribution=inputs.monthly_savings,
+                    annual_return=annual_real_return,
+                    target=coast_fire_number,
+                )
+            else:
+                months_to_coast = _simulate_to_target(
+                    starting_balance=inputs.current_net_worth,
+                    monthly_savings=inputs.monthly_savings,
+                    annual_real_return=annual_real_return,
+                    target=coast_fire_number,
+                    annual_real_savings_growth=annual_real_savings_growth,
+                )
+            if months_to_coast is not None:
+                years_coast, months_coast = divmod(round(months_to_coast), 12)
+                coast_date = _add_months(inputs.as_of_date, round(months_to_coast))
+
     return FireResult(
         annual_expenses=annual_expenses,
         fire_number=fire_number,
         real_return_pct=real_return_pct,
+        real_savings_growth_pct=real_savings_growth_pct,
         months_to_fire=months_to_fire,
         years_part=years_part,
         months_part=months_part,
@@ -213,6 +297,12 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
         is_partial=is_partial,
         desired_monthly_income_today=inputs.desired_monthly_income if is_partial else None,
         desired_monthly_income_future=desired_monthly_income_future,
+        coast_fire_number=coast_fire_number,
+        already_coast=already_coast,
+        months_to_coast=months_to_coast,
+        years_coast=years_coast,
+        months_coast=months_coast,
+        coast_date=coast_date,
     )
 
 
@@ -257,6 +347,43 @@ def _months_to_reach_target(
     import math
     n_months = math.log(ratio) / math.log(1 + monthly_rate)
     return n_months
+
+
+def _simulate_to_target(
+    starting_balance: float,
+    monthly_savings: float,
+    annual_real_return: float,
+    target: float,
+    annual_real_savings_growth: float,
+    max_years: int = 100,
+) -> float | None:
+    """Month-by-month simulation: find the first month where the balance
+    reaches `target`, given a savings amount that grows at
+    `annual_real_savings_growth` per year (in real / inflation-adjusted
+    terms).
+
+    Used when `annual_real_savings_growth != 0`, because the closed-form
+    solution in `_months_to_reach_target` assumes constant contributions.
+
+    Returns the month number (as float) when target is first reached, or
+    None if not reached within `max_years`.
+    """
+    if starting_balance >= target:
+        return 0.0
+
+    monthly_rate = (1 + annual_real_return) ** (1 / 12) - 1
+    monthly_savings_growth = (1 + annual_real_savings_growth) ** (1 / 12) - 1
+
+    balance = starting_balance
+    savings = monthly_savings
+
+    for month in range(1, max_years * 12 + 1):
+        balance = balance * (1 + monthly_rate) + savings
+        savings = savings * (1 + monthly_savings_growth)
+        if balance >= target:
+            return float(month)
+
+    return None
 
 
 def _add_months(start: _dt.date, months: int) -> _dt.date:
@@ -410,28 +537,44 @@ def compute_projection_series(
     inputs: "FireInputs",
     result: "FireResult",
 ) -> tuple[list[_dt.date], list[float]]:
-    """Compute the (dates, balances) series for the projection curve,
-    starting from `inputs.current_net_worth` as of `inputs.as_of_date`.
+    """Compute the (dates, balances) series for the projection curve.
 
-    Shared by the matplotlib chart (`build_projection_figure`, used by
-    the CLI) and the web UI's interactive chart -- so both always show
-    exactly the same projection.
+    When `result.real_savings_growth_pct` is non-zero, a month-by-month
+    simulation is used; otherwise the closed-form `_balance_at_month` is
+    used.  The horizon is extended to show both the FIRE crossing and the
+    Coast FIRE crossing (if applicable).
     """
     monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
 
     if result.months_to_fire is not None:
-        # A little extra room past the FIRE date so the crossing is visible.
         horizon_months = max(round(result.months_to_fire * 1.15), round(result.months_to_fire) + 6)
     else:
-        horizon_months = 40 * 12  # Default 40-year horizon if unreachable.
+        horizon_months = 40 * 12
+
+    # Extend horizon to show Coast FIRE crossing point if it falls later.
+    if result.months_to_coast is not None:
+        horizon_months = max(horizon_months, round(result.months_to_coast) + 6)
 
     anchor_date = inputs.as_of_date
-    months = list(range(0, horizon_months + 1))
-    dates = [_add_months(anchor_date, m) for m in months]
-    balances = [
-        _balance_at_month(m, inputs.current_net_worth, inputs.monthly_savings, monthly_rate)
-        for m in months
-    ]
+    n = horizon_months + 1
+
+    if abs(result.real_savings_growth_pct) > 1e-9:
+        monthly_savings_growth = (1 + result.real_savings_growth_pct / 100) ** (1 / 12) - 1
+        balances = []
+        balance = inputs.current_net_worth
+        savings = inputs.monthly_savings
+        balances.append(balance)
+        for _ in range(horizon_months):
+            balance = balance * (1 + monthly_rate) + savings
+            savings = savings * (1 + monthly_savings_growth)
+            balances.append(balance)
+    else:
+        balances = [
+            _balance_at_month(m, inputs.current_net_worth, inputs.monthly_savings, monthly_rate)
+            for m in range(n)
+        ]
+
+    dates = [_add_months(anchor_date, m) for m in range(n)]
     return dates, balances
 
 
@@ -481,6 +624,35 @@ def build_projection_figure(
         linewidth=1.5,
         label=f"FIRE target: {result.fire_number:,.0f}",
     )
+
+    if result.coast_fire_number is not None:
+        ax.axhline(
+            result.coast_fire_number,
+            color="#C07A20",
+            linestyle=":",
+            linewidth=1.5,
+            label=f"Coast FIRE: {result.coast_fire_number:,.0f}",
+        )
+        if result.already_coast:
+            ax.scatter([dates[0]], [result.coast_fire_number], color="#C07A20", zorder=5)
+            ax.annotate(
+                "Already Coast FIRE!",
+                xy=(dates[0], result.coast_fire_number),
+                xytext=(10, 12),
+                textcoords="offset points",
+                fontsize=9,
+                color="#C07A20",
+            )
+        elif result.coast_date is not None:
+            ax.scatter([result.coast_date], [result.coast_fire_number], color="#C07A20", zorder=5)
+            ax.annotate(
+                f"Coast FIRE: {result.coast_date.strftime('%B %Y')}\n({result.years_coast}y {result.months_coast}m)",
+                xy=(result.coast_date, result.coast_fire_number),
+                xytext=(10, 12),
+                textcoords="offset points",
+                fontsize=9,
+                color="#C07A20",
+            )
 
     if result.months_to_fire is not None and result.fire_date is not None:
         ax.scatter([result.fire_date], [result.fire_number], color="#B3402F", zorder=5)
