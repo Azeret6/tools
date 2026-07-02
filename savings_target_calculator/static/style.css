@@ -50,7 +50,7 @@ body {
 
 .dek {
   max-width: 38rem;
-  color: var(--mute);
+  color: var(--ink-soft);
   margin: 0;
 }
   font-size: 0.98rem;
@@ -263,14 +263,14 @@ input[type="range"] {
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
-  font-family: var(--font-mono);
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.78rem;
   letter-spacing: 0.03em;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 
 .tool-nav-link {
-  color: var(--mute);
+  color: var(--ink-soft);
   text-decoration: none;
 }
 
