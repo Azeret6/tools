@@ -88,6 +88,37 @@
           value="{{ values.desired_monthly_income }}" placeholder="e.g. 10000">
       </div>
 
+      <div class="field-group checkbox-group">
+        <label class="checkbox-label" for="coast_fire">
+          <input
+            type="checkbox" id="coast_fire" name="coast_fire"
+            {% if values.coast_fire %}checked{% endif %}>
+          Also calculate <strong>Coast FIRE</strong>
+        </label>
+        <p class="hint">
+          The amount you need saved <em>now</em> so that — even if you stopped
+          contributing — compound growth alone would reach your FIRE target by
+          your chosen retirement age.
+        </p>
+      </div>
+
+      <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %}>
+        <div class="field-group two-col">
+          <div>
+            <label for="current_age">Current age</label>
+            <input type="number" min="1" max="100" step="1"
+              id="current_age" name="current_age"
+              value="{{ values.current_age }}" placeholder="e.g. 30">
+          </div>
+          <div>
+            <label for="retirement_age">Target retirement age</label>
+            <input type="number" min="1" max="100" step="1"
+              id="retirement_age" name="retirement_age"
+              value="{{ values.retirement_age }}" placeholder="e.g. 60">
+          </div>
+        </div>
+      </div>
+
       <hr class="divider">
       <p class="section-label">Assumptions</p>
 
@@ -123,6 +154,18 @@
           min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}"
           data-output="withdrawal_out">
         <p class="hint">Recommended range: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
+      </div>
+
+      <div class="field-group slider-group">
+        <div class="slider-label">
+          <label for="savings_growth_pct">Annual savings increase <span class="optional">(nominal)</span></label>
+          <output id="savings_growth_out" for="savings_growth_pct">{{ values.savings_growth_pct }}%</output>
+        </div>
+        <input
+          type="range" id="savings_growth_pct" name="savings_growth_pct"
+          min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}"
+          data-output="savings_growth_out">
+        <p class="hint">How much more (in today's money) you plan to save each year. 0 = constant savings.</p>
       </div>
 
       <button type="submit" class="calculate-btn">Calculate</button>
@@ -169,6 +212,12 @@
               <span>Real return used</span>
               <span class="num">{{ display.real_return_pct }}%</span>
             </div>
+            {% if display.savings_growth_active %}
+            <div class="ledger-row">
+              <span>Real savings growth</span>
+              <span class="num">{{ display.real_savings_growth_pct }}%/yr</span>
+            </div>
+            {% endif %}
             {% if display.is_partial %}
             <div class="ledger-row">
               <span>Desired amount (today's money)</span>
@@ -182,6 +231,24 @@
             {% endif %}
             {% endif %}
           </div>
+
+          {% if display.coast_fire_number %}
+          <div class="coast-panel">
+            <p class="result-label">Coast FIRE</p>
+            {% if display.already_coast %}
+              <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
+            {% else %}
+              <p class="big-number coast-num">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
+              <p class="result-sub">Coast FIRE by {{ display.coast_date }}</p>
+            {% endif %}
+            <div class="ledger-rows">
+              <div class="ledger-row">
+                <span>Coast FIRE number</span>
+                <span class="num">{{ display.coast_fire_number }}</span>
+              </div>
+            </div>
+          </div>
+          {% endif %}
         </div>
 
         {% if chart_payload %}
@@ -238,6 +305,13 @@
     var partialField = document.getElementById('partial_fire_field');
     partialCheckbox.addEventListener('change', function () {
       partialField.hidden = !partialCheckbox.checked;
+    });
+
+    // Show/hide Coast FIRE age fields based on the checkbox.
+    var coastCheckbox = document.getElementById('coast_fire');
+    var coastFields = document.getElementById('coast_fire_fields');
+    coastCheckbox.addEventListener('change', function () {
+      coastFields.hidden = !coastCheckbox.checked;
     });
 
     {% if chart_payload %}
@@ -301,12 +375,36 @@
         tension: 0
       });
 
+      if (payload.coastTarget && payload.coastTarget.length) {
+        datasets.push({
+          label: 'Coast FIRE target',
+          data: payload.coastTarget,
+          borderColor: '#C07A20',
+          borderDash: [3, 4],
+          pointRadius: 0,
+          borderWidth: 1.5,
+          tension: 0
+        });
+      }
+
       if (payload.marker) {
         datasets.push({
           label: 'Crossing point',
           data: [payload.marker],
           borderColor: '#B3402F',
           backgroundColor: '#B3402F',
+          pointRadius: 5,
+          pointHoverRadius: 6,
+          showLine: false
+        });
+      }
+
+      if (payload.coastMarker) {
+        datasets.push({
+          label: 'Coast crossing',
+          data: [payload.coastMarker],
+          borderColor: '#C07A20',
+          backgroundColor: '#C07A20',
           pointRadius: 5,
           pointHoverRadius: 6,
           showLine: false
@@ -339,11 +437,16 @@
           },
           plugins: {
             legend: {
-              labels: { filter: function (item) { return item.text !== 'Crossing point'; } }
+              labels: { filter: function (item) {
+                return item.text !== 'Crossing point' && item.text !== 'Coast crossing';
+              }}
             },
             tooltip: {
               filter: function (item) {
-                return item.dataset.label !== 'FIRE target' && item.dataset.label !== 'Crossing point';
+                return item.dataset.label !== 'FIRE target'
+                  && item.dataset.label !== 'Coast FIRE target'
+                  && item.dataset.label !== 'Crossing point'
+                  && item.dataset.label !== 'Coast crossing';
               },
               callbacks: {
                 title: function (items) { return dateFmt(items[0].parsed.x); },
@@ -351,7 +454,12 @@
                   var saved = item.parsed.y;
                   var remaining = Math.max(payload.fireNumber - saved, 0);
                   var who = item.dataset.label === 'Recorded history' ? 'Saved (recorded)' : 'Projected saved';
-                  return [who + ': ' + moneyFmt.format(saved), 'Remaining to target: ' + moneyFmt.format(remaining)];
+                  var lines = [who + ': ' + moneyFmt.format(saved), 'Remaining to FIRE: ' + moneyFmt.format(remaining)];
+                  if (payload.coastFireNumber) {
+                    var toCoast = Math.max(payload.coastFireNumber - saved, 0);
+                    lines.push('Remaining to Coast FIRE: ' + moneyFmt.format(toCoast));
+                  }
+                  return lines;
                 }
               }
             }
