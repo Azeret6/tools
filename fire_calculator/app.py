@@ -95,12 +95,35 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
             "label": f"{result.fire_date.strftime('%B %Y')} ({result.years_part}y {result.months_part}m)",
         }
 
+    coast_target_points = []
+    coast_marker_point = None
+    if result.coast_fire_number is not None and all_x:
+        coast_target_points = [
+            {"x": min(all_x), "y": result.coast_fire_number},
+            {"x": max(all_x), "y": result.coast_fire_number},
+        ]
+        if result.already_coast:
+            coast_marker_point = {
+                "x": _to_epoch_ms(inputs.as_of_date),
+                "y": result.coast_fire_number,
+                "label": "Already Coast FIRE!",
+            }
+        elif result.coast_date is not None:
+            coast_marker_point = {
+                "x": _to_epoch_ms(result.coast_date),
+                "y": result.coast_fire_number,
+                "label": f"Coast FIRE: {result.coast_date.strftime('%B %Y')} ({result.years_coast}y {result.months_coast}m)",
+            }
+
     return {
         "projection": projection_points,
         "history": history_points,
         "target": target_points,
         "marker": marker_point,
         "fireNumber": result.fire_number,
+        "coastTarget": coast_target_points,
+        "coastMarker": coast_marker_point,
+        "coastFireNumber": result.coast_fire_number,
     }
 
 
@@ -113,8 +136,12 @@ def index():
         "nominal_return_pct": fc.DEFAULT_NOMINAL_RETURN_PCT,
         "inflation_pct": fc.DEFAULT_INFLATION_PCT,
         "withdrawal_rate_pct": fc.DEFAULT_WITHDRAWAL_RATE_PCT,
+        "savings_growth_pct": fc.DEFAULT_SAVINGS_GROWTH_PCT,
         "partial_fire": False,
         "desired_monthly_income": "",
+        "coast_fire": False,
+        "current_age": "",
+        "retirement_age": "",
     }
     context = {
         "values": values,
@@ -143,8 +170,14 @@ def index():
         values["withdrawal_rate_pct"] = _parse_form_float(
             form, "withdrawal_rate_pct", values["withdrawal_rate_pct"]
         )
+        values["savings_growth_pct"] = _parse_form_float(
+            form, "savings_growth_pct", values["savings_growth_pct"]
+        )
         values["partial_fire"] = form.get("partial_fire") == "on"
         values["desired_monthly_income"] = form.get("desired_monthly_income", "")
+        values["coast_fire"] = form.get("coast_fire") == "on"
+        values["current_age"] = form.get("current_age", "")
+        values["retirement_age"] = form.get("retirement_age", "")
 
         history = None
         as_of_date = _dt.date.today()
@@ -171,6 +204,10 @@ def index():
         annual_income = _parse_form_float(form, "annual_income")
         monthly_savings = _parse_form_float(form, "monthly_savings")
         desired_monthly_income = _parse_form_float(form, "desired_monthly_income")
+        current_age_raw = form.get("current_age", "").strip()
+        retirement_age_raw = form.get("retirement_age", "").strip()
+        current_age = int(current_age_raw) if current_age_raw.isdigit() else None
+        retirement_age = int(retirement_age_raw) if retirement_age_raw.isdigit() else None
 
         if not context["error"] and (
             annual_income is None or monthly_savings is None
@@ -187,6 +224,15 @@ def index():
                 "(or untick the checkbox to calculate full FIRE instead)."
             )
 
+        if not context["error"] and values["coast_fire"] and (
+            current_age is None or retirement_age is None
+            or retirement_age <= current_age
+        ):
+            context["error"] = (
+                "For Coast FIRE, please enter a valid current age and a "
+                "retirement age that is higher than your current age."
+            )
+
         if not context["error"]:
             try:
                 inputs = fc.FireInputs(
@@ -196,9 +242,13 @@ def index():
                     nominal_return_pct=values["nominal_return_pct"],
                     inflation_pct=values["inflation_pct"],
                     withdrawal_rate_pct=values["withdrawal_rate_pct"],
+                    savings_growth_pct=values["savings_growth_pct"],
                     as_of_date=as_of_date,
                     partial_fire=values["partial_fire"],
                     desired_monthly_income=desired_monthly_income,
+                    coast_fire=values["coast_fire"],
+                    current_age=current_age,
+                    retirement_age=retirement_age,
                 )
                 result = fc.calculate_fire(inputs)
             except ValueError as exc:
@@ -212,6 +262,8 @@ def index():
                     "real_return_pct": f"{result.real_return_pct:.1f}",
                     "reachable": result.months_to_fire is not None,
                     "is_partial": result.is_partial,
+                    "savings_growth_active": abs(values["savings_growth_pct"]) > 0.01,
+                    "real_savings_growth_pct": f"{result.real_savings_growth_pct:.1f}",
                 }
                 if result.months_to_fire is not None:
                     context["display"]["years"] = result.years_part
@@ -226,6 +278,13 @@ def index():
                             f"{result.desired_monthly_income_future:,.0f}"
                         )
                         context["display"]["future_year"] = result.fire_date.year
+                if result.coast_fire_number is not None:
+                    context["display"]["coast_fire_number"] = f"{result.coast_fire_number:,.0f}"
+                    context["display"]["already_coast"] = result.already_coast
+                    if not result.already_coast and result.coast_date is not None:
+                        context["display"]["years_coast"] = result.years_coast
+                        context["display"]["months_coast"] = result.months_coast
+                        context["display"]["coast_date"] = result.coast_date.strftime("%B %Y")
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
