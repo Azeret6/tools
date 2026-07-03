@@ -210,14 +210,11 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
     annual_real_return = real_return_pct / 100
 
     # Real annual growth rate for the savings amount.
-    # 0% input → real growth = 0 (constant savings in real terms, backward-compatible).
-    # Any positive nominal rate X is converted via Fisher equation, which typically
-    # yields a slightly negative real rate when X < inflation (e.g. 2% nominal with
-    # 3% inflation → −0.97% real, meaning savings keep up less than fully with inflation).
-    if abs(inputs.savings_growth_pct) < 1e-9:
-        real_savings_growth_pct = 0.0
-    else:
-        real_savings_growth_pct = real_return_pct_from(inputs.savings_growth_pct, inputs.inflation_pct)
+    # savings_growth_pct is expressed directly in real (inflation-adjusted) terms:
+    # 0 % = constant savings (original behaviour), 2 % = saves 2 % more purchasing
+    # power each year. No Fisher conversion needed — the user enters real growth directly,
+    # which avoids the confusing situation where values below inflation all behave the same.
+    real_savings_growth_pct = inputs.savings_growth_pct
     annual_real_savings_growth = real_savings_growth_pct / 100
 
     # Choose solver: closed-form when savings are constant, simulation when
