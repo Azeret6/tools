@@ -317,6 +317,44 @@ def index():
                     context["display"]["st_gap_positive"] = gap > 0
                     context["display"]["st_already_enough"] = gap <= 0
 
+                # Nominal monthly income at retirement — what the withdrawal
+                # will look like in the actual prices of the year you retire.
+                if result.months_to_fire is not None:
+                    years_to_fire = result.months_to_fire / 12
+                    inflation = values["inflation_pct"] / 100
+                    monthly_today = (
+                        inputs.desired_monthly_income
+                        if result.is_partial
+                        else result.annual_expenses / 12
+                    )
+                    monthly_nominal = monthly_today * (1 + inflation) ** years_to_fire
+                    context["display"]["monthly_income_today"] = f"{monthly_today:,.0f}"
+                    context["display"]["monthly_income_nominal"] = f"{monthly_nominal:,.0f}"
+                    context["display"]["fire_year"] = result.fire_date.year
+
+                # Savings progression table (only when savings growth is active).
+                if abs(values["savings_growth_pct"]) > 0.01 and result.months_to_fire is not None:
+                    nominal_growth = values["savings_growth_pct"] / 100
+                    real_growth = result.real_savings_growth_pct / 100
+                    base = inputs.monthly_savings
+                    max_year = max(int(result.months_to_fire / 12) + 1, 5)
+                    checkpoints = sorted(set(
+                        [1, 3, 5, 10, 15, 20, 25, 30, int(result.months_to_fire / 12)]
+                    ))
+                    milestones = []
+                    for yr in checkpoints:
+                        if yr < 1 or yr > max_year + 1:
+                            continue
+                        real_val = base * (1 + real_growth) ** yr
+                        nom_val = base * (1 + nominal_growth) ** yr
+                        milestones.append({
+                            "year": yr,
+                            "real": f"{real_val:,.0f}",
+                            "nominal": f"{nom_val:,.0f}",
+                            "is_fire_year": yr == int(result.months_to_fire / 12),
+                        })
+                    context["display"]["savings_milestones"] = milestones
+
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
     reference_rows = fc.savings_rate_reference_table(
