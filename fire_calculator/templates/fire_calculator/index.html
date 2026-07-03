@@ -119,6 +119,36 @@
         </div>
       </div>
 
+      <div class="field-group checkbox-group">
+        <label class="checkbox-label" for="savings_target">
+          <input
+            type="checkbox" id="savings_target" name="savings_target"
+            {% if values.savings_target %}checked{% endif %}>
+          Calculate <strong>required monthly savings</strong>
+        </label>
+        <p class="hint">
+          Given a desired retirement income and a fixed time horizon,
+          how much do you need to save each month?
+        </p>
+      </div>
+
+      <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %}>
+        <div class="field-group two-col">
+          <div>
+            <label for="savings_target_income">Target monthly income <span class="optional">(today's money)</span></label>
+            <input type="number" step="any" min="0" inputmode="decimal"
+              id="savings_target_income" name="savings_target_income"
+              value="{{ values.savings_target_income }}" placeholder="e.g. 30000">
+          </div>
+          <div>
+            <label for="savings_target_years">Savings horizon <span class="optional">(years)</span></label>
+            <input type="number" step="0.5" min="0.5" inputmode="decimal"
+              id="savings_target_years" name="savings_target_years"
+              value="{{ values.savings_target_years }}" placeholder="e.g. 20">
+          </div>
+        </div>
+      </div>
+
       <hr class="divider">
       <p class="section-label">Assumptions</p>
 
@@ -249,6 +279,34 @@
             </div>
           </div>
           {% endif %}
+
+          {% if display.st_target_amount %}
+          <div class="coast-panel">
+            <p class="result-label">Required monthly savings ({{ display.st_years }}y horizon, {{ display.st_income }}/mo target)</p>
+            {% if display.st_already_enough %}
+              <p class="coast-achieved">✓ You're already saving enough.</p>
+              <p class="result-sub">You could actually save {{ display.st_gap }} less per month and still hit your target.</p>
+            {% else %}
+              <p class="big-number coast-num" style="color: var(--brick);">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
+            {% endif %}
+            <div class="ledger-rows">
+              <div class="ledger-row">
+                <span>Target amount</span>
+                <span class="num">{{ display.st_target_amount }}</span>
+              </div>
+              <div class="ledger-row">
+                <span>You currently save</span>
+                <span class="num">{{ display.savings_rate_pct }}%</span>
+              </div>
+              {% if not display.st_already_enough %}
+              <div class="ledger-row">
+                <span>Monthly gap</span>
+                <span class="num" style="color: var(--brick);">+{{ display.st_gap }}/mo</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
         </div>
 
         {% if chart_payload %}
@@ -312,6 +370,13 @@
     var coastFields = document.getElementById('coast_fire_fields');
     coastCheckbox.addEventListener('change', function () {
       coastFields.hidden = !coastCheckbox.checked;
+    });
+
+    // Show/hide savings target fields based on the checkbox.
+    var stCheckbox = document.getElementById('savings_target');
+    var stFields = document.getElementById('savings_target_fields');
+    stCheckbox.addEventListener('change', function () {
+      stFields.hidden = !stCheckbox.checked;
     });
 
     {% if chart_payload %}
