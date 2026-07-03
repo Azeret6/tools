@@ -310,7 +310,7 @@ def index():
                 if result.st_target_amount is not None:
                     context["display"]["st_target_amount"] = f"{result.st_target_amount:,.0f}"
                     context["display"]["st_required_monthly"] = f"{result.st_required_monthly:,.0f}"
-                    context["display"]["st_years"] = int(values["savings_target_years"])
+                    context["display"]["st_years"] = round(float(values["savings_target_years"]), 1)
                     context["display"]["st_income"] = f"{savings_target_income:,.0f}"
                     gap = result.st_gap
                     context["display"]["st_gap"] = f"{abs(gap):,.0f}"
