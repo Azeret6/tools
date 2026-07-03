@@ -493,3 +493,54 @@ input[type="range"]::-moz-range-thumb {
   background: var(--paper);
   color: var(--ink);
 }
+
+/* ----------------------------------------------------------------
+   Savings milestone table
+   ---------------------------------------------------------------- */
+.milestone-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+.milestone-table th {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mute);
+  text-align: left;
+  padding: 0.3rem 0.5rem 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.milestone-table td {
+  padding: 0.3rem 0.5rem 0.3rem 0;
+  border-bottom: 1px dashed var(--line);
+  color: var(--ink);
+}
+
+.milestone-table tr:last-child td {
+  border-bottom: none;
+}
+
+.milestone-table tr.fire-row td {
+  font-weight: 600;
+  background: var(--paper);
+}
+
+.milestone-table .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.milestone-table .highlight {
+  color: var(--ledger-dark);
+}
+
+.ledger-row .highlight {
+  color: var(--ledger-dark);
+  font-weight: 600;
+}
