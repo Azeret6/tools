@@ -1,52 +1,17 @@
 # tools
 
-A growing collection of small, practical tools meant to be useful to a
-wide range of people — not just developers. Each tool lives in its own
-folder, is self-contained, and can be used independently of the others.
+A collection of small, practical tools — useful to a wide range of
+people, not just developers. Each tool lives in its own folder and
+works independently. A `hub/` combines them into one web interface.
 
-## Available tools
+## Tools
 
-| Tool | Description |
+| Tool | What it does |
 |---|---|
-| [`fire_calculator`](./fire_calculator) | Estimate how long it will take to reach Financial Independence (FIRE), with a chart of your projected net worth vs. your target. |
-| [`raise_calculator`](./raise_calculator) | Compare what happens to a pay raise if you spend it, hold it as cash, or invest it. |
-| [`savings_target_calculator`](./savings_target_calculator) | Work out how much you need to save each month to reach a target retirement income within a chosen number of years. |
-
-*(More tools will be added here as they're built.)*
-
-## Structure
-
-Each tool gets its own subfolder containing everything it needs. Some
-tools are CLI-only; others also ship a small web interface. A `hub/`
-folder runs all of them together from one page (see below):
-
-```
-tools/
-├── README.md              <- you are here
-├── .gitignore
-│
-├── hub/                    <- runs every tool's web interface at once
-│   ├── hub.py
-│   ├── templates/
-│   ├── static/
-│   └── README.md
-│
-├── fire_calculator/
-│   ├── fire_calculator.py
-│   ├── app.py              <- optional: web interface
-│   ├── templates/
-│   │   └── fire_calculator/index.html   <- namespaced so the hub can tell tools apart
-│   ├── static/
-│   ├── README.md          <- usage, inputs, assumptions for this tool
-│   └── requirements.txt   <- dependencies for this tool only
-│
-└── <next_tool>/
-    └── ...
-```
-
-This keeps tools independent: each one documents and declares its own
-dependencies, so anyone can grab a single subfolder without dragging in
-the rest of the repo.
+| [`fire_calculator`](./fire_calculator) | Financial independence planning: how long until you can retire, how much you need to save, Coast FIRE, and more. CLI and web. |
+| [`raise_calculator`](./raise_calculator) | Model a pay raise three ways — spend it, hold it as cash, or invest it — with an optional FIRE-target comparison. CLI and web. |
+| [`savings_target_calculator`](./savings_target_calculator) | Given a desired retirement income and a time horizon, work out how much to save each month. CLI and web. |
+| [`color_palette_generator`](./color_palette_generator) | Generate colour palettes with five harmony modes, four style moods, and WCAG contrast checking. Web. |
 
 ## Running all tools from one page
 
@@ -56,32 +21,48 @@ pip install -r requirements.txt
 python3 hub.py
 ```
 
-Then open **http://127.0.0.1:5000** — a landing page links to every
-tool, each mounted at its own URL. See `hub/README.md` for how it works
-and how to add a new tool to it.
+Opens at **http://127.0.0.1:5000** — a landing page with links to every
+tool, each at its own URL. See `hub/README.md` for details.
 
-## Using a tool
+## Running a single tool
 
-1. Open the subfolder for the tool you want.
-2. Read its `README.md` for what it does and how to run it — some have
-   both a command-line and a web version.
-3. If it has a `requirements.txt`, install dependencies first:
+1. Open the tool's subfolder.
+2. Read its `README.md`.
+3. Install dependencies if needed, then run:
    ```bash
    cd <tool_name>
    pip install -r requirements.txt
-   python3 <tool_name>.py
+   python3 app.py          # web interface
+   python3 <tool_name>.py  # command line
    ```
 
-## Contributing / adding a new tool
+## Structure
 
-When adding a new tool, please follow the same pattern: its own
-subfolder, its own `README.md`, and its own `requirements.txt` if it
-needs external packages. Add a row for it in the table above.
+```
+tools/
+├── README.md
+├── .gitignore
+├── hub/                    <- runs all web interfaces at once
+│   ├── hub.py
+│   ├── templates/
+│   └── static/
+├── fire_calculator/
+│   ├── fire_calculator.py  <- calculation logic (no UI dependencies)
+│   ├── app.py              <- web interface (Flask Blueprint)
+│   ├── templates/fire_calculator/
+│   ├── static/
+│   ├── README.md
+│   └── requirements.txt
+└── <other_tools>/          <- same structure
+```
 
-If the tool has a web interface, define it as a Flask **Blueprint**
-(see any existing tool's `app.py`) rather than a bare `Flask` app, and
-put its template(s) in a subfolder named after the tool (e.g.
-`templates/my_tool/index.html`) rather than directly in `templates/`.
-This is what lets the tool be added to `hub/` later with a one-line
-change, and avoids template name clashes if it ever is. The tool still
-runs completely on its own either way.
+Each tool is self-contained: its own README, its own dependencies, its
+own templates in a named subfolder to avoid clashes in the hub.
+
+## Adding a new tool
+
+Follow the same pattern — subfolder, `README.md`, `requirements.txt`
+if needed. For a web interface, define it as a Flask **Blueprint** (see
+any existing `app.py`) with templates in `templates/<tool_name>/`.
+This lets it run standalone *and* be added to the hub with a one-line
+change. Add a row to the table above.
