@@ -188,14 +188,14 @@
 
       <div class="field-group slider-group">
         <div class="slider-label">
-          <label for="savings_growth_pct">Annual savings increase <span class="optional">(nominal)</span></label>
+          <label for="savings_growth_pct">Annual savings increase <span class="optional">(real)</span></label>
           <output id="savings_growth_out" for="savings_growth_pct">{{ values.savings_growth_pct }}%</output>
         </div>
         <input
           type="range" id="savings_growth_pct" name="savings_growth_pct"
           min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}"
           data-output="savings_growth_out">
-        <p class="hint">How much more (in today's money) you plan to save each year. 0 = constant savings.</p>
+        <p class="hint">Real annual increase in today's purchasing power. 2% means you save 2% more each year after inflation. 0 = constant savings.</p>
       </div>
 
       <button type="submit" class="calculate-btn">Calculate</button>
@@ -244,7 +244,7 @@
             </div>
             {% if display.savings_growth_active %}
             <div class="ledger-row">
-              <span>Real savings growth</span>
+              <span>Annual savings increase</span>
               <span class="num">{{ display.real_savings_growth_pct }}%/yr</span>
             </div>
             {% endif %}
