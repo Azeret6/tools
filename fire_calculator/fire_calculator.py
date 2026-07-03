@@ -123,6 +123,11 @@ class FireInputs:
     coast_fire: bool = False
     current_age: int | None = None
     retirement_age: int | None = None
+    # Savings target: inverse calculation — given a desired monthly income
+    # and a fixed time horizon, compute the required monthly savings.
+    savings_target: bool = False
+    savings_target_income: float | None = None  # desired monthly income, today's money
+    savings_target_years: float | None = None   # savings horizon in years
 
 
 @dataclass
@@ -149,6 +154,10 @@ class FireResult:
     years_coast: int = 0
     months_coast: int = 0
     coast_date: _dt.date | None = None
+    # Savings target (only set when inputs.savings_target=True):
+    st_target_amount: float | None = None       # FIRE number derived from savings_target_income
+    st_required_monthly: float | None = None    # monthly savings needed to hit target in time
+    st_gap: float | None = None                 # required − current (positive = need more, negative = enough)
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +293,38 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
                 years_coast, months_coast = divmod(round(months_to_coast), 12)
                 coast_date = _add_months(inputs.as_of_date, round(months_to_coast))
 
+    # -----------------------------------------------------------------------
+    # Savings target: inverse calculation — given a desired monthly income
+    # and a fixed time horizon, compute the required monthly savings.
+    # The math mirrors savings_target_calculator.py (kept inline so this
+    # module has no cross-tool dependency).
+    # -----------------------------------------------------------------------
+    st_target_amount = st_required_monthly = st_gap = None
+
+    if (
+        inputs.savings_target
+        and inputs.savings_target_income is not None
+        and inputs.savings_target_income > 0
+        and inputs.savings_target_years is not None
+        and inputs.savings_target_years > 0
+    ):
+        import math as _math
+        st_target_amount = (inputs.savings_target_income * 12) / (inputs.withdrawal_rate_pct / 100)
+        total_months_st = max(round(inputs.savings_target_years * 12), 1)
+        monthly_rate_st = (1 + annual_real_return) ** (1 / 12) - 1
+        fv_current_st = inputs.current_net_worth * (1 + monthly_rate_st) ** total_months_st
+        remaining_st = max(st_target_amount - fv_current_st, 0.0)
+        if remaining_st == 0.0:
+            st_required_monthly = 0.0
+        elif abs(monthly_rate_st) < 1e-12:
+            st_required_monthly = remaining_st / total_months_st
+        else:
+            st_required_monthly = (
+                remaining_st * monthly_rate_st
+                / ((1 + monthly_rate_st) ** total_months_st - 1)
+            )
+        st_gap = st_required_monthly - inputs.monthly_savings
+
     return FireResult(
         annual_expenses=annual_expenses,
         fire_number=fire_number,
@@ -303,6 +344,9 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
         years_coast=years_coast,
         months_coast=months_coast,
         coast_date=coast_date,
+        st_target_amount=st_target_amount,
+        st_required_monthly=st_required_monthly,
+        st_gap=st_gap,
     )
 
 
