@@ -248,6 +248,16 @@
               <span class="num">{{ display.real_savings_growth_pct }}%/yr</span>
             </div>
             {% endif %}
+            {% if display.monthly_income_today %}
+            <div class="ledger-row">
+              <span>Monthly withdrawal — today's money</span>
+              <span class="num">{{ display.monthly_income_today }}/mo</span>
+            </div>
+            <div class="ledger-row">
+              <span>Same amount in {{ display.fire_year }} prices</span>
+              <span class="num highlight">{{ display.monthly_income_nominal }}/mo</span>
+            </div>
+            {% endif %}
             {% if display.is_partial %}
             <div class="ledger-row">
               <span>Desired amount (today's money)</span>
@@ -307,6 +317,32 @@
             </div>
           </div>
           {% endif %}
+
+          {% if display.savings_milestones %}
+          <div class="coast-panel">
+            <p class="result-label">Monthly savings — how they change ({{ values.savings_growth_pct }}% nominal/yr)</p>
+            <table class="milestone-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Today's money</th>
+                  <th>Nominal (inflated)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in display.savings_milestones %}
+                <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
+                  <td>{{ m.year }}</td>
+                  <td class="num">{{ m.real }}/mo</td>
+                  <td class="num highlight">{{ m.nominal }}/mo</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="hint" style="margin-top:0.6rem">Today's money = purchasing power equivalent; Nominal = actual amount transferred. Highlighted row = year of financial independence.</p>
+          </div>
+          {% endif %}
+
         </div>
 
         {% if chart_payload %}
