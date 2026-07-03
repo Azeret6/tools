@@ -142,6 +142,9 @@ def index():
         "coast_fire": False,
         "current_age": "",
         "retirement_age": "",
+        "savings_target": False,
+        "savings_target_income": "",
+        "savings_target_years": "",
     }
     context = {
         "values": values,
@@ -178,6 +181,9 @@ def index():
         values["coast_fire"] = form.get("coast_fire") == "on"
         values["current_age"] = form.get("current_age", "")
         values["retirement_age"] = form.get("retirement_age", "")
+        values["savings_target"] = form.get("savings_target") == "on"
+        values["savings_target_income"] = form.get("savings_target_income", "")
+        values["savings_target_years"] = form.get("savings_target_years", "")
 
         history = None
         as_of_date = _dt.date.today()
@@ -233,6 +239,18 @@ def index():
                 "retirement age that is higher than your current age."
             )
 
+        savings_target_income = _parse_form_float(form, "savings_target_income")
+        savings_target_years = _parse_form_float(form, "savings_target_years")
+
+        if not context["error"] and values["savings_target"] and (
+            not savings_target_income or savings_target_income <= 0
+            or not savings_target_years or savings_target_years <= 0
+        ):
+            context["error"] = (
+                "For the savings target, please enter a positive desired "
+                "monthly income and a savings horizon in years."
+            )
+
         if not context["error"]:
             try:
                 inputs = fc.FireInputs(
@@ -249,6 +267,9 @@ def index():
                     coast_fire=values["coast_fire"],
                     current_age=current_age,
                     retirement_age=retirement_age,
+                    savings_target=values["savings_target"],
+                    savings_target_income=savings_target_income,
+                    savings_target_years=savings_target_years,
                 )
                 result = fc.calculate_fire(inputs)
             except ValueError as exc:
@@ -285,6 +306,16 @@ def index():
                         context["display"]["years_coast"] = result.years_coast
                         context["display"]["months_coast"] = result.months_coast
                         context["display"]["coast_date"] = result.coast_date.strftime("%B %Y")
+
+                if result.st_target_amount is not None:
+                    context["display"]["st_target_amount"] = f"{result.st_target_amount:,.0f}"
+                    context["display"]["st_required_monthly"] = f"{result.st_required_monthly:,.0f}"
+                    context["display"]["st_years"] = int(values["savings_target_years"])
+                    context["display"]["st_income"] = f"{savings_target_income:,.0f}"
+                    gap = result.st_gap
+                    context["display"]["st_gap"] = f"{abs(gap):,.0f}"
+                    context["display"]["st_gap_positive"] = gap > 0
+                    context["display"]["st_already_enough"] = gap <= 0
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
