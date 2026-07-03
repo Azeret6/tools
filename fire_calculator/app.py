@@ -334,8 +334,10 @@ def index():
 
                 # Savings progression table (only when savings growth is active).
                 if abs(values["savings_growth_pct"]) > 0.01 and result.months_to_fire is not None:
-                    nominal_growth = values["savings_growth_pct"] / 100
                     real_growth = result.real_savings_growth_pct / 100
+                    inflation = values["inflation_pct"] / 100
+                    # Nominal savings at year t = real_savings(t) * inflation_factor(t)
+                    # because real = today's purchasing power, nominal = actual transfer amount
                     base = inputs.monthly_savings
                     max_year = max(int(result.months_to_fire / 12) + 1, 5)
                     checkpoints = sorted(set(
@@ -346,7 +348,7 @@ def index():
                         if yr < 1 or yr > max_year + 1:
                             continue
                         real_val = base * (1 + real_growth) ** yr
-                        nom_val = base * (1 + nominal_growth) ** yr
+                        nom_val = real_val * (1 + inflation) ** yr
                         milestones.append({
                             "year": yr,
                             "real": f"{real_val:,.0f}",
