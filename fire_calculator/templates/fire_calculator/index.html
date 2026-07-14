@@ -344,12 +344,6 @@
           {% endif %}
 
         </div>
-
-        {% if chart_payload %}
-          <div class="chart-wrap">
-            <canvas id="projectionChart" height="280"></canvas>
-          </div>
-        {% endif %}
       {% else %}
         <div class="empty-state">
           <p>Fill in your numbers and press Calculate.</p>
@@ -359,6 +353,12 @@
     </section>
 
   </form>
+
+  {% if chart_payload %}
+  <div class="chart-full">
+    <canvas id="projectionChart" height="360"></canvas>
+  </div>
+  {% endif %}
 
   {% if reference_table %}
   <section class="panel reference" aria-label="Savings rate reference">
