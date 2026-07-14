@@ -27,7 +27,9 @@
 
   <form class="layout" method="post" enctype="multipart/form-data" novalidate>
 
-    <section class="panel inputs" aria-label="Your numbers">
+    <div class="left-col">
+
+      <section class="panel inputs" aria-label="Your numbers">
 
       <div class="field-group">
         <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
@@ -149,6 +151,20 @@
         </div>
       </div>
 
+      <div class="field-group checkbox-group">
+        <label class="checkbox-label" for="scenarios">
+          <input
+            type="checkbox" id="scenarios" name="scenarios"
+            {% if values.scenarios %}checked{% endif %}>
+          Show <strong>±1 % scenarios</strong>
+        </label>
+        <p class="hint">
+          Adds two curves to the chart: green if you save 1 percentage point
+          more each month, red if 1 point less. Both also adjust the target
+          (you need less in retirement if you spend less now).
+        </p>
+      </div>
+
       <hr class="divider">
       <p class="section-label">Assumptions</p>
 
@@ -216,6 +232,20 @@
             </p>
             <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
             <p class="result-sub">Estimated: {{ display.fire_date }}</p>
+
+            {% if display.scenarios %}
+            <div class="scenario-rows">
+              {% for s in display.scenarios %}
+              <div class="scenario-row">
+                <span class="scenario-dot" style="background: {{ s.color }}"></span>
+                <span class="scenario-label" style="color: {{ s.color }}">{{ s.label }}</span>
+                <span class="scenario-time" style="color: {{ s.color }}">
+                  {% if s.reachable %}{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}{% else %}not reachable{% endif %}
+                </span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
           {% else %}
             <p class="result-label">Not reachable</p>
             <p class="result-sub unreachable">
@@ -352,13 +382,21 @@
       {% endif %}
     </section>
 
-  </form>
+    </div>{# end left-col #}
 
-  {% if chart_payload %}
-  <div class="chart-full">
-    <canvas id="projectionChart" height="360"></canvas>
-  </div>
-  {% endif %}
+    <div class="right-col">
+      {% if chart_payload %}
+      <div class="chart-full panel">
+        <canvas id="projectionChart"></canvas>
+      </div>
+      {% elif not error %}
+      <div class="panel chart-placeholder">
+        <p>Your chart will appear here after calculating.</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </form>
 
   {% if reference_table %}
   <section class="panel reference" aria-label="Savings rate reference">
@@ -512,6 +550,35 @@
         });
       }
 
+      // ±1 % savings rate scenarios
+      if (payload.scenarios) {
+        payload.scenarios.forEach(function (s) {
+          // Projection curve
+          datasets.push({
+            label: s.label,
+            data: s.projection,
+            borderColor: s.color,
+            borderDash: [5, 4],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            tension: 0.2,
+            fill: false,
+          });
+          // Crossing marker
+          if (s.marker) {
+            datasets.push({
+              label: s.label + ' crossing',
+              data: [s.marker],
+              borderColor: s.color,
+              backgroundColor: s.color,
+              pointRadius: 5,
+              pointHoverRadius: 6,
+              showLine: false,
+            });
+          }
+        });
+      }
+
       var ctx = canvas.getContext('2d');
       new Chart(ctx, {
         type: 'line',
@@ -538,16 +605,19 @@
           },
           plugins: {
             legend: {
-              labels: { filter: function (item) {
-                return item.text !== 'Crossing point' && item.text !== 'Coast crossing';
-              }}
+              labels: {
+                filter: function (item) {
+                  return !item.text.endsWith(' crossing') && item.text !== 'Crossing point' && item.text !== 'Coast crossing';
+                }
+              }
             },
             tooltip: {
               filter: function (item) {
                 return item.dataset.label !== 'FIRE target'
                   && item.dataset.label !== 'Coast FIRE target'
                   && item.dataset.label !== 'Crossing point'
-                  && item.dataset.label !== 'Coast crossing';
+                  && item.dataset.label !== 'Coast crossing'
+                  && !item.dataset.label.endsWith(' crossing');
               },
               callbacks: {
                 title: function (items) { return dateFmt(items[0].parsed.x); },
