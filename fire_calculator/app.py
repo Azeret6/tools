@@ -145,6 +145,7 @@ def index():
         "savings_target": False,
         "savings_target_income": "",
         "savings_target_years": "",
+        "scenarios": False,
     }
     context = {
         "values": values,
@@ -184,6 +185,7 @@ def index():
         values["savings_target"] = form.get("savings_target") == "on"
         values["savings_target_income"] = form.get("savings_target_income", "")
         values["savings_target_years"] = form.get("savings_target_years", "")
+        values["scenarios"] = form.get("scenarios") == "on"
 
         history = None
         as_of_date = _dt.date.today()
@@ -358,6 +360,68 @@ def index():
                     context["display"]["savings_milestones"] = milestones
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
+
+                # ±1 % savings rate scenarios (shown as coloured lines on chart).
+                # Each ±1 pp of savings rate = ±annual_income / 100 / 12 per month.
+                # The FIRE number also changes because expenses change — that's
+                # the "double effect" that makes savings rate so powerful.
+                if values["scenarios"] and result.months_to_fire is not None:
+                    delta = inputs.annual_income / 100 / 12
+                    scenario_defs = [
+                        ("+1 % savings rate", +delta, "#2F6F52"),
+                        ("−1 % savings rate", -delta, "#B3402F"),
+                    ]
+                    scenario_results = []
+                    for label, sign, color in scenario_defs:
+                        new_savings = max(0.0, inputs.monthly_savings + sign)
+                        # Use the per-month delta, not sign directly
+                        new_savings = max(0.0, inputs.monthly_savings + delta * (1 if sign > 0 else -1))
+                        inp_s = fc.FireInputs(
+                            current_net_worth=inputs.current_net_worth,
+                            annual_income=inputs.annual_income,
+                            monthly_savings=new_savings,
+                            nominal_return_pct=inputs.nominal_return_pct,
+                            inflation_pct=inputs.inflation_pct,
+                            withdrawal_rate_pct=inputs.withdrawal_rate_pct,
+                            savings_growth_pct=inputs.savings_growth_pct,
+                            as_of_date=inputs.as_of_date,
+                        )
+                        try:
+                            res_s = fc.calculate_fire(inp_s)
+                        except ValueError:
+                            continue
+                        dates_s, balances_s = fc.compute_projection_series(inp_s, res_s)
+                        proj_s = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates_s, balances_s)]
+                        marker_s = None
+                        if res_s.months_to_fire is not None and res_s.fire_date is not None:
+                            marker_s = {
+                                "x": _to_epoch_ms(res_s.fire_date),
+                                "y": res_s.fire_number,
+                                "label": f"{label}: {res_s.fire_date.strftime('%B %Y')}",
+                            }
+                        scenario_results.append({
+                            "label": label,
+                            "color": color,
+                            "projection": proj_s,
+                            "marker": marker_s,
+                            "years": res_s.years_part,
+                            "months_val": res_s.months_part,
+                            "fire_date": res_s.fire_date.strftime("%B %Y") if res_s.fire_date else None,
+                            "reachable": res_s.months_to_fire is not None,
+                            "fire_number": res_s.fire_number,
+                        })
+                    context["chart_payload"]["scenarios"] = scenario_results
+                    context["display"]["scenarios"] = [
+                        {
+                            "label": s["label"],
+                            "color": s["color"],
+                            "years": s["years"],
+                            "months_val": s["months_val"],
+                            "fire_date": s["fire_date"],
+                            "reachable": s["reachable"],
+                        }
+                        for s in scenario_results
+                    ]
 
     reference_rows = fc.savings_rate_reference_table(
         values["nominal_return_pct"], values["inflation_pct"], values["withdrawal_rate_pct"]
