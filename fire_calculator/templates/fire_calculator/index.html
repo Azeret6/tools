@@ -286,14 +286,11 @@ function buildDatasets(payload) {
   // Markers
   function mkr(d, color) {
     return { label:'__m', data:[d], borderColor:color, backgroundColor:color,
-      pointRadius:7, pointHoverRadius:9, pointStyle:'circle', showLine:false, order:1 };
+      pointRadius:5, pointHoverRadius:7, pointStyle:'circle', showLine:false, order:1 };
   }
   if (payload.marker) ds.push(mkr(payload.marker, '#B3402F'));
   if (payload.coastMarker) ds.push(mkr(payload.coastMarker, '#C07A20'));
-  if (payload.scenarios) {
-    var colors = ['#2F6F52','#B3402F'];
-    payload.scenarios.forEach(function(s,i){ if(s.marker) ds.push(mkr(s.marker, colors[i])); });
-  }
+  // Scenario crossing markers intentionally omitted — dates shown in sidebar text
 
   return ds;
 }
