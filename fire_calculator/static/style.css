@@ -117,3 +117,26 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 .reference-table th { color:var(--mute); font-weight:600; font-size:0.7rem; border-bottom:1px solid var(--line); }
 .reference-table td { font-weight:600; color:var(--ledger-dark); font-variant-numeric:tabular-nums; }
 @media(max-width:700px){ .reference-table{ font-size:0.72rem; } .reference-table th,.reference-table td{ padding:0.28rem 0.12rem; } }
+
+/* ── Top bar Calculate button ── */
+.top-inputs {
+  grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+  align-items: end;
+}
+.top-calc { display:flex; align-items:flex-end; }
+.top-calc .calculate-btn { white-space:nowrap; margin-top:0; }
+
+/* ── Conditional fields spacing ── */
+.conditional-field { margin-bottom:0.75rem; }
+
+/* ── Chart toolbar (zoom reset) ── */
+.chart-toolbar { display:flex; justify-content:flex-end; margin-bottom:0.5rem; }
+.zoom-reset-btn {
+  font-family:var(--font-mono); font-size:0.72rem; padding:0.3rem 0.7rem;
+  border:1px solid var(--line); border-radius:3px; background:var(--paper);
+  color:var(--mute); cursor:pointer;
+}
+.zoom-reset-btn:hover { color:var(--ink); border-color:var(--ink); }
+
+/* ── Results panel keeps proper spacing ── */
+.results-panel { /* inherits .panel */ }
