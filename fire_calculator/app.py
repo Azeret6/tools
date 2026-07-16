@@ -37,7 +37,7 @@ import os
 import threading
 import webbrowser
 
-from flask import Blueprint, Flask, render_template, request
+from flask import Blueprint, Flask, jsonify, render_template, request
 
 import fire_calculator as fc
 
@@ -115,6 +115,8 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
                 "label": f"Coast FIRE: {result.coast_date.strftime('%B %Y')} ({result.years_coast}y {result.months_coast}m)",
             }
 
+    x_max = max((p["x"] for p in projection_points), default=None)
+
     return {
         "projection": projection_points,
         "history": history_points,
@@ -124,6 +126,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
         "coastTarget": coast_target_points,
         "coastMarker": coast_marker_point,
         "coastFireNumber": result.coast_fire_number,
+        "xMax": x_max,
     }
 
 
@@ -433,6 +436,21 @@ def index():
     from flask import current_app
     context["hub_tools"] = current_app.config.get("HUB_TOOLS")
     context["hub_active"] = "fire_calculator"
+    # JSON mode — used by the live-update JS to refresh chart and results
+    # without a full page reload. Called as POST /?json=1
+    if request.method == "POST" and request.args.get("json") == "1":
+        results_html = render_template(
+            "fire_calculator/_results.html",
+            display=context.get("display"),
+            error=context.get("error"),
+            values=values,
+        )
+        return jsonify({
+            "chart_payload": context.get("chart_payload"),
+            "results_html": results_html,
+            "error": context.get("error"),
+        })
+
     return render_template("fire_calculator/index.html", **context)
 
 
