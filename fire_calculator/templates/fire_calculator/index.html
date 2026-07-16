@@ -181,9 +181,6 @@
     <div class="chart-col">
       {% if chart_payload %}
       <div class="panel chart-panel">
-        <div class="chart-toolbar">
-          <span class="zoom-hint">Ctrl+scroll to zoom · drag to pan</span>          <button type="button" id="reset-zoom-btn" class="zoom-reset-btn" title="Reset zoom">↺ Reset zoom</button>
-        </div>
         <canvas id="projectionChart"></canvas>
       </div>
       {% else %}
@@ -212,7 +209,6 @@
 </section>
 {% endif %}
 
-<!-- Chart.js (no external zoom plugin — implemented manually below) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <script>
@@ -377,69 +373,10 @@ function chartOptions(payload) {
   }
 
   var payload = {{ chart_payload | tojson }};
-  window._chartOrigMin = NOW - THREE_MONTHS;
-  window._chartOrigMax = payload.xMax || undefined;
-
   window.fireChart = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: { datasets: buildDatasets(payload) },
     options: chartOptions(payload)
-  });
-
-  // ── Manual zoom (Ctrl+scroll) and pan (drag) — no plugin ──────
-  // Tracks "original" range for reset
-  function getRange() {
-    return {
-      min: window.fireChart.options.scales.x.min,
-      max: window.fireChart.options.scales.x.max
-    };
-  }
-  function setRange(min, max) {
-    window.fireChart.options.scales.x.min = min;
-    window.fireChart.options.scales.x.max = max;
-    window.fireChart.update('none');
-  }
-
-  // Ctrl + wheel → zoom around cursor position
-  canvas.addEventListener('wheel', function(e) {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    var r = getRange();
-    var range = r.max - r.min;
-    // Find where cursor is on the x-axis (0..1)
-    var rect = canvas.getBoundingClientRect();
-    var xPct = (e.clientX - rect.left - window.fireChart.scales.x.left) /
-               (window.fireChart.scales.x.right - window.fireChart.scales.x.left);
-    xPct = Math.max(0, Math.min(1, xPct));
-    var factor = e.deltaY < 0 ? 0.8 : 1.25;
-    var newRange = range * factor;
-    var anchor = r.min + range * xPct;
-    setRange(anchor - newRange * xPct, anchor + newRange * (1 - xPct));
-  }, { passive: false });
-
-  // Drag → pan
-  var _drag = null;
-  canvas.addEventListener('mousedown', function(e) {
-    if (e.button !== 0) return;
-    _drag = { startX: e.clientX, min: getRange().min, max: getRange().max };
-    canvas.style.cursor = 'grabbing';
-  });
-  window.addEventListener('mousemove', function(e) {
-    if (!_drag || !window.fireChart) return;
-    var pxRange = window.fireChart.scales.x.right - window.fireChart.scales.x.left;
-    if (pxRange <= 0) return;
-    var msPerPx = (_drag.max - _drag.min) / pxRange;
-    var shift = (_drag.startX - e.clientX) * msPerPx;
-    setRange(_drag.min + shift, _drag.max + shift);
-  });
-  window.addEventListener('mouseup', function() {
-    if (_drag) { _drag = null; canvas.style.cursor = ''; }
-  });
-
-  // Reset zoom button
-  var resetBtn = document.getElementById('reset-zoom-btn');
-  if (resetBtn) resetBtn.addEventListener('click', function() {
-    setRange(window._chartOrigMin, window._chartOrigMax);
   });
 })();
 {% endif %}
@@ -480,17 +417,9 @@ function doLiveUpdate() {
         // Chart didn't exist yet — build it now
         var canvas = document.getElementById('projectionChart');
         if (canvas && typeof Chart !== 'undefined') {
-          window._chartOrigMin = NOW - THREE_MONTHS;
-          window._chartOrigMax = payload.xMax || undefined;
           window.fireChart = new Chart(canvas.getContext('2d'), {
             type:'line', data:{ datasets:buildDatasets(payload) }, options:chartOptions(payload)
           });
-          var resetBtn = document.getElementById('reset-zoom-btn');
-          if (resetBtn) resetBtn.onclick = function() {
-            window.fireChart.options.scales.x.min = window._chartOrigMin;
-            window.fireChart.options.scales.x.max = window._chartOrigMax;
-            window.fireChart.update('none');
-          };
           var empty = document.querySelector('.chart-empty');
           if (empty) empty.style.display = 'none';
         }
