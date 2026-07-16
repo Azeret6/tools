@@ -126,9 +126,9 @@
         <div class="checkbox-group">
           <label class="checkbox-label" for="scenarios">
             <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
-            <strong>±1 % scenarios</strong>
+            <strong>±5 % scenarios</strong>
           </label>
-          <p class="hint">Show what happens if you save 1 pp more (green band) or less (red).</p>
+          <p class="hint">Show what happens if you save 5 pp more (green band) or less (red).</p>
         </div>
 
         <hr class="divider">
@@ -210,6 +210,14 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+// Disable all data-point dots globally — individual datasets override where needed
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+  Chart.defaults.elements.point.hoverRadius = 0;
+  Chart.defaults.elements.point.hitRadius = 6;
+}
+</script>
 
 <script>
 // ── Slider live labels ──────────────────────────────────────────
