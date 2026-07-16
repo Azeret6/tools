@@ -10,636 +10,535 @@
 </head>
 <body>
 
-  {% if hub_tools %}
-  <nav class="tool-nav">
-    <a href="/" class="tool-nav-link">&larr; All tools</a>
-    {% for t in hub_tools %}
-    <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
-    {% endfor %}
-  </nav>
-  {% endif %}
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
 
-  <header class="masthead">
-    <p class="eyebrow">Financial Independence</p>
-    <h1>FIRE Calculator</h1>
-    <p class="subtitle">Estimate how long until your investments can cover your expenses.</p>
-  </header>
+<header class="masthead">
+  <p class="eyebrow">Financial Independence</p>
+  <h1>FIRE Calculator</h1>
+  <p class="subtitle">Estimate how long until your investments can cover your expenses.</p>
+</header>
 
-  <form class="layout" method="post" enctype="multipart/form-data" novalidate>
+<form method="post" enctype="multipart/form-data" novalidate>
 
-    <div class="left-col">
-
-      <section class="panel inputs" aria-label="Your numbers">
-
+  <!-- ═══════════════════════════════════════════════════════
+       ZONE 1 — top inputs bar (full width)
+  ══════════════════════════════════════════════════════════ -->
+  <div class="zone-top panel">
+    <div class="top-inputs">
       <div class="field-group">
         <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
         <input type="file" id="savings_diary" name="savings_diary" accept=".csv">
-        <p class="hint">
-          Columns <code>date,net_worth</code>. If provided, your most recent
-          entry is used as current net worth automatically.
-        </p>
-        {% if history_count %}
-          <p class="hint loaded">Loaded {{ history_count }} entries.</p>
-        {% endif %}
+        <p class="hint">Columns <code>date,net_worth</code> — most recent entry used as current net worth.{% if history_count %} <strong>{{ history_count }} entries loaded.</strong>{% endif %}</p>
       </div>
-
       <div class="field-group">
         <label for="current_net_worth">Current net worth</label>
-        <input
-          type="number" step="any" min="0" inputmode="decimal"
+        <input type="number" step="any" min="0" inputmode="decimal"
           id="current_net_worth" name="current_net_worth"
-          value="{{ values.current_net_worth }}" placeholder="e.g. 20000" required>
+          value="{{ values.current_net_worth }}" placeholder="e.g. 20000">
       </div>
-
       <div class="field-group">
         <label for="annual_income">Annual net income</label>
-        <input
-          type="number" step="any" min="0" inputmode="decimal"
+        <input type="number" step="any" min="0" inputmode="decimal"
           id="annual_income" name="annual_income"
-          value="{{ values.annual_income }}" placeholder="e.g. 50000" required>
+          value="{{ values.annual_income }}" placeholder="e.g. 500000" required>
       </div>
-
       <div class="field-group">
         <label for="monthly_savings">Monthly savings</label>
-        <input
-          type="number" step="any" min="0" inputmode="decimal"
+        <input type="number" step="any" min="0" inputmode="decimal"
           id="monthly_savings" name="monthly_savings"
-          value="{{ values.monthly_savings }}" placeholder="e.g. 1000" required>
+          value="{{ values.monthly_savings }}" placeholder="e.g. 10000" required>
       </div>
+    </div>
+  </div>
 
-      <hr class="divider">
+  <!-- ═══════════════════════════════════════════════════════
+       ZONE 2 — sidebar + chart
+  ══════════════════════════════════════════════════════════ -->
+  <div class="zone-body">
 
-      <div class="field-group checkbox-group">
-        <label class="checkbox-label" for="partial_fire">
-          <input
-            type="checkbox" id="partial_fire" name="partial_fire"
-            {% if values.partial_fire %}checked{% endif %}>
-          Calculate <strong>partial FIRE</strong> instead
-        </label>
-        <p class="hint">
-          For a specific extra monthly amount (e.g. a pension top-up)
-          rather than full financial independence.
-        </p>
-      </div>
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
 
-      <div class="field-group" id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %}>
-        <label for="desired_monthly_income">Desired monthly amount <span class="optional">(today's money)</span></label>
-        <input
-          type="number" step="any" min="0" inputmode="decimal"
-          id="desired_monthly_income" name="desired_monthly_income"
-          value="{{ values.desired_monthly_income }}" placeholder="e.g. 10000">
-      </div>
+      <div class="panel">
 
-      <div class="field-group checkbox-group">
-        <label class="checkbox-label" for="coast_fire">
-          <input
-            type="checkbox" id="coast_fire" name="coast_fire"
-            {% if values.coast_fire %}checked{% endif %}>
-          Also calculate <strong>Coast FIRE</strong>
-        </label>
-        <p class="hint">
-          The amount you need saved <em>now</em> so that — even if you stopped
-          contributing — compound growth alone would reach your FIRE target by
-          your chosen retirement age.
-        </p>
-      </div>
+        <!-- Checkboxes -->
+        <div class="field-group checkbox-group">
+          <label class="checkbox-label" for="partial_fire">
+            <input type="checkbox" id="partial_fire" name="partial_fire" {% if values.partial_fire %}checked{% endif %}>
+            <strong>Partial FIRE</strong>
+          </label>
+          <p class="hint">Target a specific monthly income instead of full independence.</p>
+        </div>
+        <div class="field-group" id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %}>
+          <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
+          <input type="number" step="any" min="0" inputmode="decimal"
+            id="desired_monthly_income" name="desired_monthly_income"
+            value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+        </div>
 
-      <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %}>
-        <div class="field-group two-col">
-          <div>
-            <label for="current_age">Current age</label>
-            <input type="number" min="1" max="100" step="1"
-              id="current_age" name="current_age"
-              value="{{ values.current_age }}" placeholder="e.g. 30">
-          </div>
-          <div>
-            <label for="retirement_age">Target retirement age</label>
-            <input type="number" min="1" max="100" step="1"
-              id="retirement_age" name="retirement_age"
-              value="{{ values.retirement_age }}" placeholder="e.g. 60">
+        <div class="field-group checkbox-group">
+          <label class="checkbox-label" for="coast_fire">
+            <input type="checkbox" id="coast_fire" name="coast_fire" {% if values.coast_fire %}checked{% endif %}>
+            <strong>Coast FIRE</strong>
+          </label>
+          <p class="hint">When can you stop contributing and let growth do the rest?</p>
+        </div>
+        <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %}>
+          <div class="field-group two-col">
+            <div>
+              <label for="current_age">Current age</label>
+              <input type="number" min="1" max="100" step="1" id="current_age" name="current_age" value="{{ values.current_age }}" placeholder="e.g. 30">
+            </div>
+            <div>
+              <label for="retirement_age">Retirement age</label>
+              <input type="number" min="1" max="100" step="1" id="retirement_age" name="retirement_age" value="{{ values.retirement_age }}" placeholder="e.g. 60">
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="field-group checkbox-group">
-        <label class="checkbox-label" for="savings_target">
-          <input
-            type="checkbox" id="savings_target" name="savings_target"
-            {% if values.savings_target %}checked{% endif %}>
-          Calculate <strong>required monthly savings</strong>
-        </label>
-        <p class="hint">
-          Given a desired retirement income and a fixed time horizon,
-          how much do you need to save each month?
-        </p>
-      </div>
-
-      <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %}>
-        <div class="field-group two-col">
-          <div>
-            <label for="savings_target_income">Target monthly income <span class="optional">(today's money)</span></label>
-            <input type="number" step="any" min="0" inputmode="decimal"
-              id="savings_target_income" name="savings_target_income"
-              value="{{ values.savings_target_income }}" placeholder="e.g. 30000">
-          </div>
-          <div>
-            <label for="savings_target_years">Savings horizon <span class="optional">(years)</span></label>
-            <input type="number" step="0.5" min="0.5" inputmode="decimal"
-              id="savings_target_years" name="savings_target_years"
-              value="{{ values.savings_target_years }}" placeholder="e.g. 20">
+        <div class="field-group checkbox-group">
+          <label class="checkbox-label" for="savings_target">
+            <input type="checkbox" id="savings_target" name="savings_target" {% if values.savings_target %}checked{% endif %}>
+            <strong>Required savings</strong>
+          </label>
+          <p class="hint">How much must you save monthly to reach a target income in a fixed time?</p>
+        </div>
+        <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %}>
+          <div class="field-group two-col">
+            <div>
+              <label for="savings_target_income">Target income/mo <span class="optional">(today)</span></label>
+              <input type="number" step="any" min="0" inputmode="decimal" id="savings_target_income" name="savings_target_income" value="{{ values.savings_target_income }}" placeholder="e.g. 30000">
+            </div>
+            <div>
+              <label for="savings_target_years">Horizon <span class="optional">(years)</span></label>
+              <input type="number" step="0.5" min="0.5" inputmode="decimal" id="savings_target_years" name="savings_target_years" value="{{ values.savings_target_years }}" placeholder="e.g. 20">
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="field-group checkbox-group">
-        <label class="checkbox-label" for="scenarios">
-          <input
-            type="checkbox" id="scenarios" name="scenarios"
-            {% if values.scenarios %}checked{% endif %}>
-          Show <strong>±1 % scenarios</strong>
-        </label>
-        <p class="hint">
-          Adds two curves to the chart: green if you save 1 percentage point
-          more each month, red if 1 point less. Both also adjust the target
-          (you need less in retirement if you spend less now).
-        </p>
-      </div>
-
-      <hr class="divider">
-      <p class="section-label">Assumptions</p>
-
-      <div class="field-group slider-group">
-        <div class="slider-label">
-          <label for="nominal_return_pct">Nominal annual return</label>
-          <output id="nominal_return_out" for="nominal_return_pct">{{ values.nominal_return_pct }}%</output>
+        <div class="field-group checkbox-group">
+          <label class="checkbox-label" for="scenarios">
+            <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
+            <strong>±1 % scenarios</strong>
+          </label>
+          <p class="hint">Show what happens if you save 1 pp more (green) or less (red) each month.</p>
         </div>
-        <input
-          type="range" id="nominal_return_pct" name="nominal_return_pct"
-          min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}"
-          data-output="nominal_return_out">
-      </div>
 
-      <div class="field-group slider-group">
-        <div class="slider-label">
-          <label for="inflation_pct">Inflation rate</label>
-          <output id="inflation_out" for="inflation_pct">{{ values.inflation_pct }}%</output>
+        <hr class="divider">
+        <p class="section-label">Assumptions</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="nominal_return_pct">Nominal annual return</label>
+            <output id="nominal_return_out">{{ values.nominal_return_pct }}%</output>
+          </div>
+          <input type="range" id="nominal_return_pct" name="nominal_return_pct" min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}" data-output="nominal_return_out">
         </div>
-        <input
-          type="range" id="inflation_pct" name="inflation_pct"
-          min="0" max="15" step="0.1" value="{{ values.inflation_pct }}"
-          data-output="inflation_out">
-      </div>
 
-      <div class="field-group slider-group">
-        <div class="slider-label">
-          <label for="withdrawal_rate_pct">Withdrawal rate</label>
-          <output id="withdrawal_out" for="withdrawal_rate_pct">{{ values.withdrawal_rate_pct }}%</output>
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="inflation_pct">Inflation rate</label>
+            <output id="inflation_out">{{ values.inflation_pct }}%</output>
+          </div>
+          <input type="range" id="inflation_pct" name="inflation_pct" min="0" max="15" step="0.1" value="{{ values.inflation_pct }}" data-output="inflation_out">
         </div>
-        <input
-          type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct"
-          min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}"
-          data-output="withdrawal_out">
-        <p class="hint">Recommended range: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
-      </div>
 
-      <div class="field-group slider-group">
-        <div class="slider-label">
-          <label for="savings_growth_pct">Annual savings increase <span class="optional">(real)</span></label>
-          <output id="savings_growth_out" for="savings_growth_pct">{{ values.savings_growth_pct }}%</output>
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}" data-output="withdrawal_out">
+          <p class="hint">Recommended: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
         </div>
-        <input
-          type="range" id="savings_growth_pct" name="savings_growth_pct"
-          min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}"
-          data-output="savings_growth_out">
-        <p class="hint">Real annual increase in today's purchasing power. 2% means you save 2% more each year after inflation. 0 = constant savings.</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="savings_growth_pct">Annual savings increase <span class="optional">(real)</span></label>
+            <output id="savings_growth_out">{{ values.savings_growth_pct }}%</output>
+          </div>
+          <input type="range" id="savings_growth_pct" name="savings_growth_pct" min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}" data-output="savings_growth_out">
+          <p class="hint">2 % = you save 2 % more purchasing power each year. 0 = constant.</p>
+        </div>
+
+        <button type="submit" class="calculate-btn">Calculate</button>
       </div>
 
-      <button type="submit" class="calculate-btn">Calculate</button>
-    </section>
-
-    <section class="panel results" aria-label="Results">
+      <!-- ── Results (sidebar, below options) ── -->
       {% if error %}
-        <div class="error-banner">
-          <p class="error-label">Could not calculate</p>
-          <p>{{ error }}</p>
-        </div>
+      <div class="error-banner panel">
+        <p class="error-label">Could not calculate</p>
+        <p>{{ error }}</p>
+      </div>
       {% elif display %}
-        <div class="receipt">
-
-          {% if display.reachable %}
-            <p class="result-label">
-              {% if display.is_partial %}Time to partial financial independence{% else %}Time to financial independence{% endif %}
-            </p>
-            <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
-            <p class="result-sub">Estimated: {{ display.fire_date }}</p>
-
-            {% if display.scenarios %}
-            <div class="scenario-rows">
-              {% for s in display.scenarios %}
-              <div class="scenario-row">
-                <span class="scenario-dot" style="background: {{ s.color }}"></span>
-                <span class="scenario-label" style="color: {{ s.color }}">{{ s.label }}</span>
-                <span class="scenario-time" style="color: {{ s.color }}">
-                  {% if s.reachable %}{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}{% else %}not reachable{% endif %}
-                </span>
-              </div>
-              {% endfor %}
+      <div class="panel">
+        {% if display.reachable %}
+          <p class="result-label">{% if display.is_partial %}Partial FIRE{% else %}Time to FIRE{% endif %}</p>
+          <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
+          <p class="result-sub">{{ display.fire_date }}</p>
+          {% if display.scenarios %}
+          <div class="scenario-rows">
+            {% for s in display.scenarios %}
+            <div class="scenario-row">
+              <span class="scenario-dot" style="background:{{ s.color }}"></span>
+              <span class="scenario-label" style="color:{{ s.color }}">{{ s.label }}</span>
+              <span class="scenario-time" style="color:{{ s.color }}">
+                {% if s.reachable %}{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}{% else %}not reachable{% endif %}
+              </span>
             </div>
-            {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% else %}
+          <p class="result-label">Not reachable</p>
+          <p class="result-sub unreachable">Savings and/or return too low. Try adjusting assumptions.</p>
+        {% endif %}
+
+        <div class="ledger-rows">
+          <div class="ledger-row"><span>Savings rate</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
+          <div class="ledger-row"><span>Annual expenses</span><span class="num">{{ display.annual_expenses }}</span></div>
+          <div class="ledger-row"><span>{% if display.is_partial %}Partial target{% else %}FIRE number{% endif %}</span><span class="num">{{ display.fire_number }}</span></div>
+          <div class="ledger-row"><span>Real return</span><span class="num">{{ display.real_return_pct }}%</span></div>
+          {% if display.savings_growth_active %}
+          <div class="ledger-row"><span>Savings increase</span><span class="num">{{ display.real_savings_growth_pct }}%/yr</span></div>
+          {% endif %}
+          {% if display.monthly_income_today %}
+          <div class="ledger-row"><span>Monthly withdrawal (today)</span><span class="num">{{ display.monthly_income_today }}/mo</span></div>
+          <div class="ledger-row"><span>Same amount in {{ display.fire_year }}</span><span class="num highlight">{{ display.monthly_income_nominal }}/mo</span></div>
+          {% endif %}
+          {% if display.is_partial and display.desired_monthly_income_today %}
+          <div class="ledger-row"><span>Target (today)</span><span class="num">{{ display.desired_monthly_income_today }}/mo</span></div>
+          {% if display.desired_monthly_income_future %}
+          <div class="ledger-row"><span>Target in {{ display.future_year }}</span><span class="num">{{ display.desired_monthly_income_future }}/mo</span></div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        {% if display.coast_fire_number %}
+        <div class="coast-panel">
+          <p class="result-label">Coast FIRE</p>
+          {% if display.already_coast %}
+            <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
           {% else %}
-            <p class="result-label">Not reachable</p>
-            <p class="result-sub unreachable">
-              At these assumptions, savings and/or return are too low to
-              reach the target. Try increasing monthly savings or expected
-              return.
-            </p>
+            <p class="big-number coast-num">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
+            <p class="result-sub">{{ display.coast_date }}</p>
           {% endif %}
-
           <div class="ledger-rows">
-            <div class="ledger-row">
-              <span>Savings rate</span>
-              <span class="num">{{ display.savings_rate_pct }}%</span>
-            </div>
-            <div class="ledger-row">
-              <span>Annual expenses</span>
-              <span class="num">{{ display.annual_expenses }}</span>
-            </div>
-            <div class="ledger-row">
-              <span>{% if display.is_partial %}Partial FIRE target{% else %}FIRE number (target){% endif %}</span>
-              <span class="num">{{ display.fire_number }}</span>
-            </div>
-            <div class="ledger-row">
-              <span>Real return used</span>
-              <span class="num">{{ display.real_return_pct }}%</span>
-            </div>
-            {% if display.savings_growth_active %}
-            <div class="ledger-row">
-              <span>Annual savings increase</span>
-              <span class="num">{{ display.real_savings_growth_pct }}%/yr</span>
-            </div>
-            {% endif %}
-            {% if display.monthly_income_today %}
-            <div class="ledger-row">
-              <span>Monthly withdrawal — today's money</span>
-              <span class="num">{{ display.monthly_income_today }}/mo</span>
-            </div>
-            <div class="ledger-row">
-              <span>Same amount in {{ display.fire_year }} prices</span>
-              <span class="num highlight">{{ display.monthly_income_nominal }}/mo</span>
-            </div>
-            {% endif %}
-            {% if display.is_partial %}
-            <div class="ledger-row">
-              <span>Desired amount (today's money)</span>
-              <span class="num">{{ display.desired_monthly_income_today }}/mo</span>
-            </div>
-            {% if display.desired_monthly_income_future %}
-            <div class="ledger-row">
-              <span>Same purchasing power, in {{ display.future_year }} prices</span>
-              <span class="num">{{ display.desired_monthly_income_future }}/mo</span>
-            </div>
-            {% endif %}
-            {% endif %}
+            <div class="ledger-row"><span>Coast FIRE number</span><span class="num">{{ display.coast_fire_number }}</span></div>
           </div>
-
-          {% if display.coast_fire_number %}
-          <div class="coast-panel">
-            <p class="result-label">Coast FIRE</p>
-            {% if display.already_coast %}
-              <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
-            {% else %}
-              <p class="big-number coast-num">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
-              <p class="result-sub">Coast FIRE by {{ display.coast_date }}</p>
-            {% endif %}
-            <div class="ledger-rows">
-              <div class="ledger-row">
-                <span>Coast FIRE number</span>
-                <span class="num">{{ display.coast_fire_number }}</span>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-
-          {% if display.st_target_amount %}
-          <div class="coast-panel">
-            <p class="result-label">Required monthly savings ({{ display.st_years }}y horizon, {{ display.st_income }}/mo target)</p>
-            {% if display.st_already_enough %}
-              <p class="coast-achieved">✓ You're already saving enough.</p>
-              <p class="result-sub">You could actually save {{ display.st_gap }} less per month and still hit your target.</p>
-            {% else %}
-              <p class="big-number coast-num" style="color: var(--brick);">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
-            {% endif %}
-            <div class="ledger-rows">
-              <div class="ledger-row">
-                <span>Target amount</span>
-                <span class="num">{{ display.st_target_amount }}</span>
-              </div>
-              <div class="ledger-row">
-                <span>You currently save</span>
-                <span class="num">{{ display.savings_rate_pct }}%</span>
-              </div>
-              {% if not display.st_already_enough %}
-              <div class="ledger-row">
-                <span>Monthly gap</span>
-                <span class="num" style="color: var(--brick);">+{{ display.st_gap }}/mo</span>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-          {% endif %}
-
-          {% if display.savings_milestones %}
-          <div class="coast-panel">
-            <p class="result-label">Monthly savings — how they change ({{ values.savings_growth_pct }}% nominal/yr)</p>
-            <table class="milestone-table">
-              <thead>
-                <tr>
-                  <th>Year</th>
-                  <th>Today's money</th>
-                  <th>Nominal (inflated)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for m in display.savings_milestones %}
-                <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
-                  <td>{{ m.year }}</td>
-                  <td class="num">{{ m.real }}/mo</td>
-                  <td class="num highlight">{{ m.nominal }}/mo</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            <p class="hint" style="margin-top:0.6rem">Today's money = purchasing power equivalent; Nominal = actual amount transferred. Highlighted row = year of financial independence.</p>
-          </div>
-          {% endif %}
-
         </div>
-      {% else %}
-        <div class="empty-state">
-          <p>Fill in your numbers and press Calculate.</p>
-          <p class="hint">All amounts should be in the same currency — which one doesn't matter.</p>
+        {% endif %}
+
+        {% if display.st_target_amount %}
+        <div class="coast-panel">
+          <p class="result-label">Required savings — {{ display.st_years }}y / {{ display.st_income }}/mo</p>
+          {% if display.st_already_enough %}
+            <p class="coast-achieved">✓ Already saving enough.</p>
+            <p class="result-sub">You could save {{ display.st_gap }} less/mo and still reach your target.</p>
+          {% else %}
+            <p class="big-number" style="color:var(--brick);font-size:clamp(1.6rem,3vw,2.2rem)">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
+          {% endif %}
+          <div class="ledger-rows">
+            <div class="ledger-row"><span>Target amount</span><span class="num">{{ display.st_target_amount }}</span></div>
+            <div class="ledger-row"><span>Currently saving</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
+            {% if not display.st_already_enough %}
+            <div class="ledger-row"><span>Monthly gap</span><span class="num" style="color:var(--brick)">+{{ display.st_gap }}/mo</span></div>
+            {% endif %}
+          </div>
         </div>
+        {% endif %}
+
+        {% if display.savings_milestones %}
+        <div class="coast-panel">
+          <p class="result-label">Savings progression ({{ values.savings_growth_pct }}% real/yr)</p>
+          <table class="milestone-table">
+            <thead><tr><th>Year</th><th>Today's money</th><th>Nominal</th></tr></thead>
+            <tbody>
+              {% for m in display.savings_milestones %}
+              <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
+                <td>{{ m.year }}</td>
+                <td class="num">{{ m.real }}/mo</td>
+                <td class="num highlight">{{ m.nominal }}/mo</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+      </div>
       {% endif %}
-    </section>
 
-    </div>{# end left-col #}
+    </div>{# end sidebar #}
 
-    <div class="right-col">
+    <!-- ── Chart column ── -->
+    <div class="chart-col">
       {% if chart_payload %}
-      <div class="chart-full panel">
+      <div class="panel chart-panel">
         <canvas id="projectionChart"></canvas>
       </div>
-      {% elif not error %}
-      <div class="panel chart-placeholder">
-        <p>Your chart will appear here after calculating.</p>
+      {% else %}
+      <div class="panel chart-empty">
+        <div>
+          <p style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin:0 0 0.4rem">Your projection will appear here.</p>
+          <p class="hint">Fill in your numbers above and press Calculate.</p>
+        </div>
       </div>
       {% endif %}
     </div>
 
-  </form>
+  </div>{# end zone-body #}
 
-  {% if reference_table %}
-  <section class="panel reference" aria-label="Savings rate reference">
-    <p class="section-label">For comparison: years to full FIRE by savings rate</p>
-    <p class="hint">
-      Starting from zero net worth, at your current assumptions (return
-      {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%,
-      withdrawal rate {{ values.withdrawal_rate_pct }}%) — this is independent
-      of your income, only the savings rate matters.
-    </p>
-    <table class="reference-table">
-      <thead>
-        <tr>
-          {% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          {% for row in reference_table %}<td>{{ row.years_display }}</td>{% endfor %}
-        </tr>
-      </tbody>
-    </table>
-  </section>
-  {% endif %}
+</form>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script>
-    // Live-update slider value labels.
-    document.querySelectorAll('input[type="range"]').forEach(function (slider) {
-      var output = document.getElementById(slider.dataset.output);
-      var sync = function () { output.textContent = slider.value + '%'; };
-      slider.addEventListener('input', sync);
-      sync();
-    });
+<!-- ═══════════════════════════════════════════════════════
+     ZONE 3 — reference table (full width, outside form)
+══════════════════════════════════════════════════════════ -->
+{% if reference_table %}
+<section class="panel reference">
+  <p class="section-label">For comparison: years to full FIRE by savings rate</p>
+  <p class="hint">At your current assumptions (return {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%, withdrawal {{ values.withdrawal_rate_pct }}%), starting from zero.</p>
+  <table class="reference-table">
+    <thead><tr>{% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}</tr></thead>
+    <tbody><tr>{% for row in reference_table %}<td>{{ row.years_display }}</td>{% endfor %}</tr></tbody>
+  </table>
+</section>
+{% endif %}
 
-    // Show/hide the partial-FIRE amount field based on the checkbox.
-    var partialCheckbox = document.getElementById('partial_fire');
-    var partialField = document.getElementById('partial_fire_field');
-    partialCheckbox.addEventListener('change', function () {
-      partialField.hidden = !partialCheckbox.checked;
-    });
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  // Slider live labels
+  document.querySelectorAll('input[type="range"]').forEach(function(s) {
+    var o = document.getElementById(s.dataset.output);
+    var sync = function(){ o.textContent = s.value + '%'; };
+    s.addEventListener('input', sync); sync();
+  });
 
-    // Show/hide Coast FIRE age fields based on the checkbox.
-    var coastCheckbox = document.getElementById('coast_fire');
-    var coastFields = document.getElementById('coast_fire_fields');
-    coastCheckbox.addEventListener('change', function () {
-      coastFields.hidden = !coastCheckbox.checked;
-    });
+  // Checkbox show/hide
+  function toggle(cbId, fieldId) {
+    var cb = document.getElementById(cbId);
+    var el = document.getElementById(fieldId);
+    if (cb && el) cb.addEventListener('change', function(){ el.hidden = !cb.checked; });
+  }
+  toggle('partial_fire', 'partial_fire_field');
+  toggle('coast_fire', 'coast_fire_fields');
+  toggle('savings_target', 'savings_target_fields');
 
-    // Show/hide savings target fields based on the checkbox.
-    var stCheckbox = document.getElementById('savings_target');
-    var stFields = document.getElementById('savings_target_fields');
-    stCheckbox.addEventListener('change', function () {
-      stFields.hidden = !stCheckbox.checked;
-    });
+  {% if chart_payload %}
+  (function() {
+    var canvas = document.getElementById('projectionChart');
+    if (typeof Chart === 'undefined') {
+      canvas.replaceWith(Object.assign(document.createElement('p'), {
+        className: 'hint',
+        textContent: 'Chart requires internet access (Chart.js). Your numbers are still correct.',
+        style: 'text-align:center;padding:3rem 0'
+      }));
+      return;
+    }
 
-    {% if chart_payload %}
-    // Interactive projection chart.
-    (function () {
-      var canvas = document.getElementById('projectionChart');
+    var payload = {{ chart_payload | tojson }};
+    var NOW = Date.now();
+    var THREE_MONTHS = 90 * 86400 * 1000;
 
-      if (typeof Chart === 'undefined') {
-        // Chart.js failed to load from the CDN (e.g. no internet access).
-        var notice = document.createElement('p');
-        notice.className = 'hint';
-        notice.style.textAlign = 'center';
-        notice.style.padding = '2rem 0';
-        notice.textContent =
-          'Could not load the interactive chart (needs internet access for ' +
-          'the Chart.js library). Your numbers above are still correct.';
-        canvas.replaceWith(notice);
-        return;
-      }
+    // Compact Y-axis labels
+    function yFmt(v) {
+      if (v >= 1e6) return (v/1e6).toFixed(v % 1e6 === 0 ? 0 : 1) + 'M';
+      if (v >= 1e3) return (v/1e3).toFixed(0) + 'k';
+      return v;
+    }
+    // Tooltip money format
+    var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+    function dateFmt(ms) {
+      return new Date(ms).toLocaleDateString('en-US', { year:'numeric', month:'short' });
+    }
 
-      var payload = {{ chart_payload | tojson }};
-      var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-      var dateFmt = function (ms) {
-        return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
-      };
+    var datasets = [];
 
-      var datasets = [];
-
-      if (payload.history.length) {
-        datasets.push({
-          label: 'Recorded history',
-          data: payload.history,
-          borderColor: '#2F6F52',
-          backgroundColor: '#2F6F52',
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          borderWidth: 2,
-          tension: 0
-        });
-      }
-
+    // ── History (green dots) ──
+    if (payload.history && payload.history.length) {
       datasets.push({
-        label: 'Projected net worth',
-        data: payload.projection,
-        borderColor: '#3B6EA5',
-        backgroundColor: '#3B6EA5',
-        pointRadius: 0,
+        label: 'Recorded history',
+        data: payload.history,
+        borderColor: '#2F6F52',
+        backgroundColor: '#2F6F52',
+        pointRadius: 3,
         pointHoverRadius: 5,
-        pointHitRadius: 8,
         borderWidth: 2,
-        tension: 0.1
+        tension: 0,
+        fill: false,
+        order: 4,
       });
+    }
 
+    // ── Scenario band (fill between +1% and -1%) ──
+    if (payload.scenarios && payload.scenarios.length === 2) {
+      var sp = payload.scenarios[0]; // +1% — higher balance
+      var sm = payload.scenarios[1]; // -1% — lower balance
+      // Upper boundary (+1%): fills DOWN to lower boundary (-1%)
       datasets.push({
-        label: 'FIRE target',
-        data: payload.target,
-        borderColor: '#B3402F',
-        borderDash: [6, 4],
-        pointRadius: 0,
+        label: sp.label,
+        data: sp.projection,
+        borderColor: 'rgba(47,111,82,0.7)',
         borderWidth: 1.5,
-        tension: 0
+        borderDash: [],
+        pointRadius: 0,
+        tension: 0.25,
+        fill: '+1',
+        backgroundColor: 'rgba(47,111,82,0.07)',
+        order: 3,
       });
+      // Lower boundary (-1%)
+      datasets.push({
+        label: sm.label,
+        data: sm.projection,
+        borderColor: 'rgba(179,64,47,0.7)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.25,
+        fill: false,
+        order: 3,
+      });
+    }
 
-      if (payload.coastTarget && payload.coastTarget.length) {
-        datasets.push({
-          label: 'Coast FIRE target',
-          data: payload.coastTarget,
-          borderColor: '#C07A20',
-          borderDash: [3, 4],
-          pointRadius: 0,
-          borderWidth: 1.5,
-          tension: 0
-        });
-      }
+    // ── Main projection (prominent blue line) ──
+    datasets.push({
+      label: 'Projected net worth',
+      data: payload.projection,
+      borderColor: '#3B6EA5',
+      borderWidth: 3,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      tension: 0.25,
+      fill: false,
+      order: 2,
+    });
 
-      if (payload.marker) {
-        datasets.push({
-          label: 'Crossing point',
-          data: [payload.marker],
-          borderColor: '#B3402F',
-          backgroundColor: '#B3402F',
-          pointRadius: 5,
-          pointHoverRadius: 6,
-          showLine: false
-        });
-      }
+    // ── FIRE target line ──
+    datasets.push({
+      label: 'FIRE target',
+      data: payload.target,
+      borderColor: 'rgba(179,64,47,0.6)',
+      borderDash: [8, 5],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+      order: 5,
+    });
 
-      if (payload.coastMarker) {
-        datasets.push({
-          label: 'Coast crossing',
-          data: [payload.coastMarker],
-          borderColor: '#C07A20',
-          backgroundColor: '#C07A20',
-          pointRadius: 5,
-          pointHoverRadius: 6,
-          showLine: false
-        });
-      }
+    // ── Coast FIRE target ──
+    if (payload.coastTarget && payload.coastTarget.length) {
+      datasets.push({
+        label: 'Coast FIRE',
+        data: payload.coastTarget,
+        borderColor: 'rgba(192,122,32,0.6)',
+        borderDash: [5, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+        order: 5,
+      });
+    }
 
-      // ±1 % savings rate scenarios
-      if (payload.scenarios) {
-        payload.scenarios.forEach(function (s) {
-          // Projection curve
-          datasets.push({
-            label: s.label,
-            data: s.projection,
-            borderColor: s.color,
-            borderDash: [5, 4],
-            pointRadius: 0,
-            borderWidth: 1.5,
-            tension: 0.2,
-            fill: false,
-          });
-          // Crossing marker
-          if (s.marker) {
-            datasets.push({
-              label: s.label + ' crossing',
-              data: [s.marker],
-              borderColor: s.color,
-              backgroundColor: s.color,
-              pointRadius: 5,
-              pointHoverRadius: 6,
-              showLine: false,
-            });
-          }
-        });
-      }
+    // ── Crossing markers ──
+    function markerDs(d, color) {
+      return { label: '__marker', data: [d], borderColor: color, backgroundColor: color, pointRadius: 7, pointHoverRadius: 8, pointStyle: 'circle', showLine: false, order: 1 };
+    }
+    if (payload.marker) datasets.push(markerDs(payload.marker, '#B3402F'));
+    if (payload.coastMarker) datasets.push(markerDs(payload.coastMarker, '#C07A20'));
+    if (payload.scenarios) {
+      payload.scenarios.forEach(function(s) {
+        if (s.marker) datasets.push(markerDs(s.marker, s.color));
+      });
+    }
 
-      var ctx = canvas.getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: { datasets: datasets },
-        options: {
-          responsive: true,
-          interaction: { mode: 'nearest', axis: 'x', intersect: false },
-          scales: {
-            x: {
-              type: 'linear',
-              ticks: {
-                callback: function (value) { return dateFmt(value); },
-                maxRotation: 0,
-                autoSkip: true
-              },
-              grid: { color: '#E5E9E2' }
-            },
-            y: {
-              ticks: {
-                callback: function (value) { return moneyFmt.format(value); }
-              },
-              grid: { color: '#E5E9E2' }
+    var ctx = canvas.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: { datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        animation: { duration: 400 },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12,
+              padding: 10,
+              font: { family: '"IBM Plex Mono"', size: 11 },
+              filter: function(item) {
+                return item.text !== '__marker'
+                  && item.text !== 'Projected net worth';
+              }
             }
           },
-          plugins: {
-            legend: {
-              labels: {
-                filter: function (item) {
-                  return !item.text.endsWith(' crossing') && item.text !== 'Crossing point' && item.text !== 'Coast crossing';
+          tooltip: {
+            backgroundColor: 'rgba(255,255,255,0.97)',
+            borderColor: '#DCE3DA',
+            borderWidth: 1,
+            titleColor: '#1B2B27',
+            bodyColor: '#6E7A73',
+            titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
+            bodyFont: { family: '"IBM Plex Mono"', size: 11 },
+            padding: 10,
+            callbacks: {
+              title: function(items) { return dateFmt(items[0].parsed.x); },
+              label: function(item) {
+                var lbl = item.dataset.label;
+                if (lbl === '__marker' || lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
+                var v = item.parsed.y;
+                var lines = [];
+                if (lbl === 'Projected net worth' || lbl === 'Recorded history') {
+                  lines.push((lbl === 'Recorded history' ? 'Saved (recorded)' : 'Projected') + ': ' + moneyFmt.format(v));
+                  lines.push('To FIRE: ' + moneyFmt.format(Math.max(payload.fireNumber - v, 0)));
+                  if (payload.coastFireNumber) lines.push('To Coast: ' + moneyFmt.format(Math.max(payload.coastFireNumber - v, 0)));
+                } else {
+                  lines.push(lbl + ': ' + moneyFmt.format(v));
                 }
-              }
-            },
-            tooltip: {
-              filter: function (item) {
-                return item.dataset.label !== 'FIRE target'
-                  && item.dataset.label !== 'Coast FIRE target'
-                  && item.dataset.label !== 'Crossing point'
-                  && item.dataset.label !== 'Coast crossing'
-                  && !item.dataset.label.endsWith(' crossing');
-              },
-              callbacks: {
-                title: function (items) { return dateFmt(items[0].parsed.x); },
-                label: function (item) {
-                  var saved = item.parsed.y;
-                  var remaining = Math.max(payload.fireNumber - saved, 0);
-                  var who = item.dataset.label === 'Recorded history' ? 'Saved (recorded)' : 'Projected saved';
-                  var lines = [who + ': ' + moneyFmt.format(saved), 'Remaining to FIRE: ' + moneyFmt.format(remaining)];
-                  if (payload.coastFireNumber) {
-                    var toCoast = Math.max(payload.coastFireNumber - saved, 0);
-                    lines.push('Remaining to Coast FIRE: ' + moneyFmt.format(toCoast));
-                  }
-                  return lines;
-                }
+                return lines;
               }
             }
           }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: NOW - THREE_MONTHS,
+            ticks: {
+              callback: function(v) { return dateFmt(v); },
+              maxRotation: 0,
+              maxTicksLimit: 7,
+              font: { family: '"IBM Plex Mono"', size: 10 },
+              color: '#6E7A73',
+            },
+            grid: { color: 'rgba(220,227,218,0.6)' },
+            border: { display: false },
+          },
+          y: {
+            ticks: {
+              callback: function(v) { return yFmt(v); },
+              maxTicksLimit: 6,
+              font: { family: '"IBM Plex Mono"', size: 10 },
+              color: '#6E7A73',
+            },
+            grid: { color: 'rgba(220,227,218,0.6)' },
+            border: { display: false },
+          }
         }
-      });
-    })();
-    {% endif %}
-  </script>
-
+      }
+    });
+  })();
+  {% endif %}
+</script>
 </body>
 </html>
