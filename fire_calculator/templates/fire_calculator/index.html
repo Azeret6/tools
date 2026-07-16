@@ -25,17 +25,16 @@
   <p class="subtitle">Estimate how long until your investments can cover your expenses.</p>
 </header>
 
-<form method="post" enctype="multipart/form-data" novalidate>
+<form id="fc-form" method="post" enctype="multipart/form-data" novalidate>
 
-  <!-- ═══════════════════════════════════════════════════════
-       ZONE 1 — top inputs bar (full width)
-  ══════════════════════════════════════════════════════════ -->
+  <!-- ═══ ZONE 1: Top inputs + Calculate (full width) ═══ -->
   <div class="zone-top panel">
     <div class="top-inputs">
       <div class="field-group">
         <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
-        <input type="file" id="savings_diary" name="savings_diary" accept=".csv">
-        <p class="hint">Columns <code>date,net_worth</code> — most recent entry used as current net worth.{% if history_count %} <strong>{{ history_count }} entries loaded.</strong>{% endif %}</p>
+        <input type="file" id="savings_diary" name="savings_diary" accept=".csv"
+          title="Columns: date, net_worth — most recent entry sets your current net worth automatically">
+        {% if history_count %}<p class="hint loaded">{{ history_count }} entries loaded.</p>{% endif %}
       </div>
       <div class="field-group">
         <label for="current_net_worth">Current net worth</label>
@@ -45,7 +44,7 @@
       </div>
       <div class="field-group">
         <label for="annual_income">Annual net income</label>
-        <input type="number" step="any" min="0" inputmode="decimal"
+        <input type="number" step="any" min="0.01" inputmode="decimal"
           id="annual_income" name="annual_income"
           value="{{ values.annual_income }}" placeholder="e.g. 500000" required>
       </div>
@@ -55,42 +54,43 @@
           id="monthly_savings" name="monthly_savings"
           value="{{ values.monthly_savings }}" placeholder="e.g. 10000" required>
       </div>
+      <div class="top-calc">
+        <button type="submit" class="calculate-btn">Calculate</button>
+      </div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════
-       ZONE 2 — sidebar + chart
-  ══════════════════════════════════════════════════════════ -->
+  <!-- ═══ ZONE 2: Sidebar + Chart ═══ -->
   <div class="zone-body">
 
-    <!-- ── Sidebar ── -->
+    <!-- Sidebar -->
     <div class="sidebar">
+      <div class="panel options-panel">
 
-      <div class="panel">
-
-        <!-- Checkboxes -->
-        <div class="field-group checkbox-group">
+        <div class="checkbox-group">
           <label class="checkbox-label" for="partial_fire">
             <input type="checkbox" id="partial_fire" name="partial_fire" {% if values.partial_fire %}checked{% endif %}>
             <strong>Partial FIRE</strong>
           </label>
           <p class="hint">Target a specific monthly income instead of full independence.</p>
         </div>
-        <div class="field-group" id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %}>
-          <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
-          <input type="number" step="any" min="0" inputmode="decimal"
-            id="desired_monthly_income" name="desired_monthly_income"
-            value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+        <div id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %} class="conditional-field">
+          <div class="field-group">
+            <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
+            <input type="number" step="any" min="0" inputmode="decimal"
+              id="desired_monthly_income" name="desired_monthly_income"
+              value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+          </div>
         </div>
 
-        <div class="field-group checkbox-group">
+        <div class="checkbox-group">
           <label class="checkbox-label" for="coast_fire">
             <input type="checkbox" id="coast_fire" name="coast_fire" {% if values.coast_fire %}checked{% endif %}>
             <strong>Coast FIRE</strong>
           </label>
           <p class="hint">When can you stop contributing and let growth do the rest?</p>
         </div>
-        <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %}>
+        <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %} class="conditional-field">
           <div class="field-group two-col">
             <div>
               <label for="current_age">Current age</label>
@@ -103,32 +103,32 @@
           </div>
         </div>
 
-        <div class="field-group checkbox-group">
+        <div class="checkbox-group">
           <label class="checkbox-label" for="savings_target">
             <input type="checkbox" id="savings_target" name="savings_target" {% if values.savings_target %}checked{% endif %}>
             <strong>Required savings</strong>
           </label>
           <p class="hint">How much must you save monthly to reach a target income in a fixed time?</p>
         </div>
-        <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %}>
+        <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %} class="conditional-field">
           <div class="field-group two-col">
             <div>
               <label for="savings_target_income">Target income/mo <span class="optional">(today)</span></label>
               <input type="number" step="any" min="0" inputmode="decimal" id="savings_target_income" name="savings_target_income" value="{{ values.savings_target_income }}" placeholder="e.g. 30000">
             </div>
             <div>
-              <label for="savings_target_years">Horizon <span class="optional">(years)</span></label>
+              <label for="savings_target_years">Horizon <span class="optional">(yrs)</span></label>
               <input type="number" step="0.5" min="0.5" inputmode="decimal" id="savings_target_years" name="savings_target_years" value="{{ values.savings_target_years }}" placeholder="e.g. 20">
             </div>
           </div>
         </div>
 
-        <div class="field-group checkbox-group">
+        <div class="checkbox-group">
           <label class="checkbox-label" for="scenarios">
             <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
             <strong>±1 % scenarios</strong>
           </label>
-          <p class="hint">Show what happens if you save 1 pp more (green) or less (red) each month.</p>
+          <p class="hint">Show what happens if you save 1 pp more (green band) or less (red).</p>
         </div>
 
         <hr class="divider">
@@ -165,123 +165,25 @@
             <output id="savings_growth_out">{{ values.savings_growth_pct }}%</output>
           </div>
           <input type="range" id="savings_growth_pct" name="savings_growth_pct" min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}" data-output="savings_growth_out">
-          <p class="hint">2 % = you save 2 % more purchasing power each year. 0 = constant.</p>
+          <p class="hint">2 % = 2 % more purchasing power each year. 0 = constant.</p>
         </div>
 
-        <button type="submit" class="calculate-btn">Calculate</button>
+      </div>{# end options-panel #}
+
+      <!-- Results (replaced on live update) -->
+      <div id="results-area">
+        {% include 'fire_calculator/_results.html' %}
       </div>
-
-      <!-- ── Results (sidebar, below options) ── -->
-      {% if error %}
-      <div class="error-banner panel">
-        <p class="error-label">Could not calculate</p>
-        <p>{{ error }}</p>
-      </div>
-      {% elif display %}
-      <div class="panel">
-        {% if display.reachable %}
-          <p class="result-label">{% if display.is_partial %}Partial FIRE{% else %}Time to FIRE{% endif %}</p>
-          <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
-          <p class="result-sub">{{ display.fire_date }}</p>
-          {% if display.scenarios %}
-          <div class="scenario-rows">
-            {% for s in display.scenarios %}
-            <div class="scenario-row">
-              <span class="scenario-dot" style="background:{{ s.color }}"></span>
-              <span class="scenario-label" style="color:{{ s.color }}">{{ s.label }}</span>
-              <span class="scenario-time" style="color:{{ s.color }}">
-                {% if s.reachable %}{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}{% else %}not reachable{% endif %}
-              </span>
-            </div>
-            {% endfor %}
-          </div>
-          {% endif %}
-        {% else %}
-          <p class="result-label">Not reachable</p>
-          <p class="result-sub unreachable">Savings and/or return too low. Try adjusting assumptions.</p>
-        {% endif %}
-
-        <div class="ledger-rows">
-          <div class="ledger-row"><span>Savings rate</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
-          <div class="ledger-row"><span>Annual expenses</span><span class="num">{{ display.annual_expenses }}</span></div>
-          <div class="ledger-row"><span>{% if display.is_partial %}Partial target{% else %}FIRE number{% endif %}</span><span class="num">{{ display.fire_number }}</span></div>
-          <div class="ledger-row"><span>Real return</span><span class="num">{{ display.real_return_pct }}%</span></div>
-          {% if display.savings_growth_active %}
-          <div class="ledger-row"><span>Savings increase</span><span class="num">{{ display.real_savings_growth_pct }}%/yr</span></div>
-          {% endif %}
-          {% if display.monthly_income_today %}
-          <div class="ledger-row"><span>Monthly withdrawal (today)</span><span class="num">{{ display.monthly_income_today }}/mo</span></div>
-          <div class="ledger-row"><span>Same amount in {{ display.fire_year }}</span><span class="num highlight">{{ display.monthly_income_nominal }}/mo</span></div>
-          {% endif %}
-          {% if display.is_partial and display.desired_monthly_income_today %}
-          <div class="ledger-row"><span>Target (today)</span><span class="num">{{ display.desired_monthly_income_today }}/mo</span></div>
-          {% if display.desired_monthly_income_future %}
-          <div class="ledger-row"><span>Target in {{ display.future_year }}</span><span class="num">{{ display.desired_monthly_income_future }}/mo</span></div>
-          {% endif %}
-          {% endif %}
-        </div>
-
-        {% if display.coast_fire_number %}
-        <div class="coast-panel">
-          <p class="result-label">Coast FIRE</p>
-          {% if display.already_coast %}
-            <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
-          {% else %}
-            <p class="big-number coast-num">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
-            <p class="result-sub">{{ display.coast_date }}</p>
-          {% endif %}
-          <div class="ledger-rows">
-            <div class="ledger-row"><span>Coast FIRE number</span><span class="num">{{ display.coast_fire_number }}</span></div>
-          </div>
-        </div>
-        {% endif %}
-
-        {% if display.st_target_amount %}
-        <div class="coast-panel">
-          <p class="result-label">Required savings — {{ display.st_years }}y / {{ display.st_income }}/mo</p>
-          {% if display.st_already_enough %}
-            <p class="coast-achieved">✓ Already saving enough.</p>
-            <p class="result-sub">You could save {{ display.st_gap }} less/mo and still reach your target.</p>
-          {% else %}
-            <p class="big-number" style="color:var(--brick);font-size:clamp(1.6rem,3vw,2.2rem)">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
-          {% endif %}
-          <div class="ledger-rows">
-            <div class="ledger-row"><span>Target amount</span><span class="num">{{ display.st_target_amount }}</span></div>
-            <div class="ledger-row"><span>Currently saving</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
-            {% if not display.st_already_enough %}
-            <div class="ledger-row"><span>Monthly gap</span><span class="num" style="color:var(--brick)">+{{ display.st_gap }}/mo</span></div>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
-
-        {% if display.savings_milestones %}
-        <div class="coast-panel">
-          <p class="result-label">Savings progression ({{ values.savings_growth_pct }}% real/yr)</p>
-          <table class="milestone-table">
-            <thead><tr><th>Year</th><th>Today's money</th><th>Nominal</th></tr></thead>
-            <tbody>
-              {% for m in display.savings_milestones %}
-              <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
-                <td>{{ m.year }}</td>
-                <td class="num">{{ m.real }}/mo</td>
-                <td class="num highlight">{{ m.nominal }}/mo</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% endif %}
-
-      </div>
-      {% endif %}
 
     </div>{# end sidebar #}
 
-    <!-- ── Chart column ── -->
+    <!-- Chart column -->
     <div class="chart-col">
       {% if chart_payload %}
       <div class="panel chart-panel">
+        <div class="chart-toolbar">
+          <button type="button" id="reset-zoom-btn" class="zoom-reset-btn" title="Reset zoom">↺ Reset zoom</button>
+        </div>
         <canvas id="projectionChart"></canvas>
       </div>
       {% else %}
@@ -298,13 +200,11 @@
 
 </form>
 
-<!-- ═══════════════════════════════════════════════════════
-     ZONE 3 — reference table (full width, outside form)
-══════════════════════════════════════════════════════════ -->
+<!-- ═══ ZONE 3: Reference table (full width, outside form) ═══ -->
 {% if reference_table %}
 <section class="panel reference">
   <p class="section-label">For comparison: years to full FIRE by savings rate</p>
-  <p class="hint">At your current assumptions (return {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%, withdrawal {{ values.withdrawal_rate_pct }}%), starting from zero.</p>
+  <p class="hint" style="margin-bottom:0.5rem">At your current assumptions (return {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%, withdrawal {{ values.withdrawal_rate_pct }}%), starting from zero.</p>
   <table class="reference-table">
     <thead><tr>{% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}</tr></thead>
     <tbody><tr>{% for row in reference_table %}<td>{{ row.years_display }}</td>{% endfor %}</tr></tbody>
@@ -312,233 +212,262 @@
 </section>
 {% endif %}
 
+<!-- Chart.js + zoom plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
 <script>
-  // Slider live labels
-  document.querySelectorAll('input[type="range"]').forEach(function(s) {
-    var o = document.getElementById(s.dataset.output);
-    var sync = function(){ o.textContent = s.value + '%'; };
-    s.addEventListener('input', sync); sync();
-  });
+// ── Slider live labels ──────────────────────────────────────────
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(s.step < 1 ? 1 : 0) + '%'; };
+  s.addEventListener('input', sync); sync();
+});
 
-  // Checkbox show/hide
-  function toggle(cbId, fieldId) {
-    var cb = document.getElementById(cbId);
-    var el = document.getElementById(fieldId);
-    if (cb && el) cb.addEventListener('change', function(){ el.hidden = !cb.checked; });
+// ── Checkbox show/hide ──────────────────────────────────────────
+function toggleField(cbId, fieldId) {
+  var cb = document.getElementById(cbId);
+  var el = document.getElementById(fieldId);
+  if (cb && el) cb.addEventListener('change', function(){ el.hidden = !cb.checked; });
+}
+toggleField('partial_fire', 'partial_fire_field');
+toggleField('coast_fire', 'coast_fire_fields');
+toggleField('savings_target', 'savings_target_fields');
+
+// ── Chart helpers (shared by initial render + live update) ──────
+var NOW = Date.now();
+var THREE_MONTHS = 90 * 86400 * 1000;
+var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+function yFmt(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(v % 1e6 === 0 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (v >= 1e3) return Math.round(v/1e3) + 'k';
+  return v;
+}
+function dateFmt(ms) {
+  return new Date(ms).toLocaleDateString('en-US', { year:'numeric', month:'short' });
+}
+
+function buildDatasets(payload) {
+  var ds = [];
+
+  // History
+  if (payload.history && payload.history.length) {
+    ds.push({ label:'Recorded history', data:payload.history,
+      borderColor:'#2F6F52', backgroundColor:'#2F6F52',
+      pointRadius:3, pointHoverRadius:5, borderWidth:2, tension:0, fill:false, order:4 });
   }
-  toggle('partial_fire', 'partial_fire_field');
-  toggle('coast_fire', 'coast_fire_fields');
-  toggle('savings_target', 'savings_target_fields');
 
-  {% if chart_payload %}
-  (function() {
-    var canvas = document.getElementById('projectionChart');
-    if (typeof Chart === 'undefined') {
-      canvas.replaceWith(Object.assign(document.createElement('p'), {
-        className: 'hint',
-        textContent: 'Chart requires internet access (Chart.js). Your numbers are still correct.',
-        style: 'text-align:center;padding:3rem 0'
-      }));
-      return;
-    }
+  // Scenario band (fill between +1% and -1%)
+  if (payload.scenarios && payload.scenarios.length === 2) {
+    var sp = payload.scenarios[0]; // +1%
+    var sm = payload.scenarios[1]; // -1%
+    ds.push({ label:sp.label, data:sp.projection,
+      borderColor:'rgba(47,111,82,0.65)', borderWidth:1.5,
+      pointRadius:0, tension:0.25, fill:'+1',
+      backgroundColor:'rgba(47,111,82,0.08)', order:3 });
+    ds.push({ label:sm.label, data:sm.projection,
+      borderColor:'rgba(179,64,47,0.65)', borderWidth:1.5,
+      pointRadius:0, tension:0.25, fill:false, order:3 });
+  }
 
-    var payload = {{ chart_payload | tojson }};
-    var NOW = Date.now();
-    var THREE_MONTHS = 90 * 86400 * 1000;
+  // Main projection
+  ds.push({ label:'Projected net worth', data:payload.projection,
+    borderColor:'#3B6EA5', borderWidth:3,
+    pointRadius:0, pointHoverRadius:5, tension:0.25, fill:false, order:2 });
 
-    // Compact Y-axis labels
-    function yFmt(v) {
-      if (v >= 1e6) return (v/1e6).toFixed(v % 1e6 === 0 ? 0 : 1) + 'M';
-      if (v >= 1e3) return (v/1e3).toFixed(0) + 'k';
-      return v;
-    }
-    // Tooltip money format
-    var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-    function dateFmt(ms) {
-      return new Date(ms).toLocaleDateString('en-US', { year:'numeric', month:'short' });
-    }
+  // FIRE target line
+  ds.push({ label:'FIRE target', data:payload.target,
+    borderColor:'rgba(179,64,47,0.55)', borderDash:[8,5], borderWidth:1.5,
+    pointRadius:0, tension:0, fill:false, order:5 });
 
-    var datasets = [];
+  // Coast target
+  if (payload.coastTarget && payload.coastTarget.length) {
+    ds.push({ label:'Coast FIRE', data:payload.coastTarget,
+      borderColor:'rgba(192,122,32,0.55)', borderDash:[5,4], borderWidth:1.5,
+      pointRadius:0, tension:0, fill:false, order:5 });
+  }
 
-    // ── History (green dots) ──
-    if (payload.history && payload.history.length) {
-      datasets.push({
-        label: 'Recorded history',
-        data: payload.history,
-        borderColor: '#2F6F52',
-        backgroundColor: '#2F6F52',
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        borderWidth: 2,
-        tension: 0,
-        fill: false,
-        order: 4,
-      });
-    }
+  // Markers
+  function mkr(d, color) {
+    return { label:'__m', data:[d], borderColor:color, backgroundColor:color,
+      pointRadius:7, pointHoverRadius:9, pointStyle:'circle', showLine:false, order:1 };
+  }
+  if (payload.marker) ds.push(mkr(payload.marker, '#B3402F'));
+  if (payload.coastMarker) ds.push(mkr(payload.coastMarker, '#C07A20'));
+  if (payload.scenarios) {
+    var colors = ['#2F6F52','#B3402F'];
+    payload.scenarios.forEach(function(s,i){ if(s.marker) ds.push(mkr(s.marker, colors[i])); });
+  }
 
-    // ── Scenario band (fill between +1% and -1%) ──
-    if (payload.scenarios && payload.scenarios.length === 2) {
-      var sp = payload.scenarios[0]; // +1% — higher balance
-      var sm = payload.scenarios[1]; // -1% — lower balance
-      // Upper boundary (+1%): fills DOWN to lower boundary (-1%)
-      datasets.push({
-        label: sp.label,
-        data: sp.projection,
-        borderColor: 'rgba(47,111,82,0.7)',
-        borderWidth: 1.5,
-        borderDash: [],
-        pointRadius: 0,
-        tension: 0.25,
-        fill: '+1',
-        backgroundColor: 'rgba(47,111,82,0.07)',
-        order: 3,
-      });
-      // Lower boundary (-1%)
-      datasets.push({
-        label: sm.label,
-        data: sm.projection,
-        borderColor: 'rgba(179,64,47,0.7)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0.25,
-        fill: false,
-        order: 3,
-      });
-    }
+  return ds;
+}
 
-    // ── Main projection (prominent blue line) ──
-    datasets.push({
-      label: 'Projected net worth',
-      data: payload.projection,
-      borderColor: '#3B6EA5',
-      borderWidth: 3,
-      pointRadius: 0,
-      pointHoverRadius: 5,
-      tension: 0.25,
-      fill: false,
-      order: 2,
-    });
-
-    // ── FIRE target line ──
-    datasets.push({
-      label: 'FIRE target',
-      data: payload.target,
-      borderColor: 'rgba(179,64,47,0.6)',
-      borderDash: [8, 5],
-      borderWidth: 1.5,
-      pointRadius: 0,
-      tension: 0,
-      fill: false,
-      order: 5,
-    });
-
-    // ── Coast FIRE target ──
-    if (payload.coastTarget && payload.coastTarget.length) {
-      datasets.push({
-        label: 'Coast FIRE',
-        data: payload.coastTarget,
-        borderColor: 'rgba(192,122,32,0.6)',
-        borderDash: [5, 4],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0,
-        fill: false,
-        order: 5,
-      });
-    }
-
-    // ── Crossing markers ──
-    function markerDs(d, color) {
-      return { label: '__marker', data: [d], borderColor: color, backgroundColor: color, pointRadius: 7, pointHoverRadius: 8, pointStyle: 'circle', showLine: false, order: 1 };
-    }
-    if (payload.marker) datasets.push(markerDs(payload.marker, '#B3402F'));
-    if (payload.coastMarker) datasets.push(markerDs(payload.coastMarker, '#C07A20'));
-    if (payload.scenarios) {
-      payload.scenarios.forEach(function(s) {
-        if (s.marker) datasets.push(markerDs(s.marker, s.color));
-      });
-    }
-
-    var ctx = canvas.getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: { datasets: datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        animation: { duration: 400 },
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              padding: 10,
-              font: { family: '"IBM Plex Mono"', size: 11 },
-              filter: function(item) {
-                return item.text !== '__marker'
-                  && item.text !== 'Projected net worth';
-              }
+function chartOptions(payload) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    interaction: { mode:'index', intersect:false },
+    plugins: {
+      legend: {
+        position:'bottom',
+        labels: {
+          boxWidth:12, padding:10,
+          font:{ family:'"IBM Plex Mono"', size:11 },
+          filter: function(i){ return i.text !== '__m' && i.text !== 'Projected net worth'; }
+        }
+      },
+      tooltip: {
+        backgroundColor:'rgba(255,255,255,0.97)',
+        borderColor:'#DCE3DA', borderWidth:1,
+        titleColor:'#1B2B27', bodyColor:'#6E7A73',
+        titleFont:{ family:'"IBM Plex Mono"', size:11, weight:'600' },
+        bodyFont:{ family:'"IBM Plex Mono"', size:11 },
+        padding:10,
+        callbacks: {
+          title: function(items){ return dateFmt(items[0].parsed.x); },
+          label: function(item){
+            var lbl = item.dataset.label;
+            if (lbl === '__m' || lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
+            var v = item.parsed.y;
+            if (lbl === 'Projected net worth' || lbl === 'Recorded history') {
+              var lines = [(lbl === 'Recorded history' ? 'Saved (recorded)' : 'Projected') + ': ' + moneyFmt.format(v)];
+              lines.push('To FIRE: ' + moneyFmt.format(Math.max(payload.fireNumber - v, 0)));
+              if (payload.coastFireNumber) lines.push('To Coast: ' + moneyFmt.format(Math.max(payload.coastFireNumber - v, 0)));
+              return lines;
             }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255,255,255,0.97)',
-            borderColor: '#DCE3DA',
-            borderWidth: 1,
-            titleColor: '#1B2B27',
-            bodyColor: '#6E7A73',
-            titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
-            bodyFont: { family: '"IBM Plex Mono"', size: 11 },
-            padding: 10,
-            callbacks: {
-              title: function(items) { return dateFmt(items[0].parsed.x); },
-              label: function(item) {
-                var lbl = item.dataset.label;
-                if (lbl === '__marker' || lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
-                var v = item.parsed.y;
-                var lines = [];
-                if (lbl === 'Projected net worth' || lbl === 'Recorded history') {
-                  lines.push((lbl === 'Recorded history' ? 'Saved (recorded)' : 'Projected') + ': ' + moneyFmt.format(v));
-                  lines.push('To FIRE: ' + moneyFmt.format(Math.max(payload.fireNumber - v, 0)));
-                  if (payload.coastFireNumber) lines.push('To Coast: ' + moneyFmt.format(Math.max(payload.coastFireNumber - v, 0)));
-                } else {
-                  lines.push(lbl + ': ' + moneyFmt.format(v));
-                }
-                return lines;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: 'linear',
-            min: NOW - THREE_MONTHS,
-            ticks: {
-              callback: function(v) { return dateFmt(v); },
-              maxRotation: 0,
-              maxTicksLimit: 7,
-              font: { family: '"IBM Plex Mono"', size: 10 },
-              color: '#6E7A73',
-            },
-            grid: { color: 'rgba(220,227,218,0.6)' },
-            border: { display: false },
-          },
-          y: {
-            ticks: {
-              callback: function(v) { return yFmt(v); },
-              maxTicksLimit: 6,
-              font: { family: '"IBM Plex Mono"', size: 10 },
-              color: '#6E7A73',
-            },
-            grid: { color: 'rgba(220,227,218,0.6)' },
-            border: { display: false },
+            return lbl + ': ' + moneyFmt.format(v);
           }
         }
+      },
+      zoom: {
+        pan: { enabled:true, mode:'x', threshold:5 },
+        zoom: { wheel:{ enabled:true }, pinch:{ enabled:true }, mode:'x' }
       }
-    });
-  })();
-  {% endif %}
+    },
+    scales: {
+      x: {
+        type:'linear',
+        min: NOW - THREE_MONTHS,
+        max: payload.xMax || undefined,
+        ticks: {
+          callback: function(v){ return dateFmt(v); },
+          maxRotation:0, maxTicksLimit:7,
+          font:{ family:'"IBM Plex Mono"', size:10 }, color:'#6E7A73'
+        },
+        grid:{ color:'rgba(220,227,218,0.6)' }, border:{ display:false }
+      },
+      y: {
+        ticks: {
+          callback: function(v){ return yFmt(v); },
+          maxTicksLimit:6,
+          font:{ family:'"IBM Plex Mono"', size:10 }, color:'#6E7A73'
+        },
+        grid:{ color:'rgba(220,227,218,0.6)' }, border:{ display:false }
+      }
+    }
+  };
+}
+
+// ── Initial chart render ────────────────────────────────────────
+{% if chart_payload %}
+(function(){
+  var canvas = document.getElementById('projectionChart');
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className:'hint', style:'text-align:center;padding:3rem 0',
+      textContent:'Chart requires internet access (Chart.js).'
+    })); return;
+  }
+
+  var payload = {{ chart_payload | tojson }};
+  window.fireChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: buildDatasets(payload) },
+    options: chartOptions(payload)
+  });
+
+  var resetBtn = document.getElementById('reset-zoom-btn');
+  if (resetBtn) resetBtn.addEventListener('click', function(){ window.fireChart.resetZoom(); });
+})();
+{% endif %}
+
+// ── Live update (AJAX, no page reload) ─────────────────────────
+var _liveTimer = null;
+var _liveRunning = false;
+var _hasResults = {{ 'true' if chart_payload else 'false' }};
+
+function scheduleLiveUpdate(delay) {
+  if (!_hasResults) return; // only live-update after first Calculate
+  clearTimeout(_liveTimer);
+  _liveTimer = setTimeout(doLiveUpdate, delay || 400);
+}
+
+function doLiveUpdate() {
+  if (_liveRunning) return;
+  _liveRunning = true;
+
+  var form = document.getElementById('fc-form');
+  var data = new FormData(form);
+
+  fetch('?json=1', { method:'POST', body:data })
+  .then(function(r){ return r.json(); })
+  .then(function(resp) {
+    // Update results panel
+    var area = document.getElementById('results-area');
+    if (area) area.innerHTML = resp.results_html || '';
+
+    // Update chart
+    if (resp.chart_payload) {
+      var payload = resp.chart_payload;
+      if (window.fireChart) {
+        window.fireChart.data.datasets = buildDatasets(payload);
+        if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
+        window.fireChart.update('active');
+      } else {
+        // Chart didn't exist yet — build it now
+        var canvas = document.getElementById('projectionChart');
+        if (canvas && typeof Chart !== 'undefined') {
+          window.fireChart = new Chart(canvas.getContext('2d'), {
+            type:'line', data:{ datasets:buildDatasets(payload) }, options:chartOptions(payload)
+          });
+          var resetBtn = document.getElementById('reset-zoom-btn');
+          if (resetBtn) resetBtn.addEventListener('click', function(){ window.fireChart.resetZoom(); });
+          // Swap placeholder for chart panel if needed
+          var empty = document.querySelector('.chart-empty');
+          if (empty) empty.style.display = 'none';
+        }
+      }
+    }
+  })
+  .catch(function(e){ console.warn('Live update failed:', e); })
+  .finally(function(){ _liveRunning = false; });
+}
+
+// Attach live-update listeners
+document.querySelectorAll('#fc-form input[type="range"]').forEach(function(s){
+  s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
+});
+document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
+  cb.addEventListener('change', function(){ scheduleLiveUpdate(150); });
+});
+document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
+  n.addEventListener('change', function(){ scheduleLiveUpdate(600); });
+  n.addEventListener('blur',   function(){ scheduleLiveUpdate(600); });
+});
+
+// File upload → full reload (can't handle server-side file processing in JSON mode)
+var fileInput = document.getElementById('savings_diary');
+if (fileInput) fileInput.addEventListener('change', function(){
+  document.getElementById('fc-form').submit();
+});
+
+// After first successful Calculate → enable live updates
+document.getElementById('fc-form').addEventListener('submit', function(){
+  _hasResults = true;
+});
 </script>
 </body>
 </html>
