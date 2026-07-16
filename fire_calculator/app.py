@@ -364,15 +364,12 @@ def index():
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
-                # ±1 % savings rate scenarios (shown as coloured lines on chart).
-                # Each ±1 pp of savings rate = ±annual_income / 100 / 12 per month.
-                # The FIRE number also changes because expenses change — that's
-                # the "double effect" that makes savings rate so powerful.
+                # ±5 % savings rate scenarios (shown as coloured lines on chart).
                 if values["scenarios"] and result.months_to_fire is not None:
-                    delta = inputs.annual_income / 100 / 12
+                    delta = inputs.annual_income * 5 / 100 / 12
                     scenario_defs = [
-                        ("+1 % savings rate", +delta, "#2F6F52"),
-                        ("−1 % savings rate", -delta, "#B3402F"),
+                        ("+5 % savings rate", +delta, "#2F6F52"),
+                        ("−5 % savings rate", -delta, "#B3402F"),
                     ]
                     scenario_results = []
                     for label, sign, color in scenario_defs:
