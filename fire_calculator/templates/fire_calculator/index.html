@@ -277,7 +277,7 @@ function buildDatasets(payload) {
   // Main projection
   ds.push({ label:'Projected net worth', data:payload.projection,
     borderColor:'#3B6EA5', borderWidth:3,
-    pointRadius:0, pointHoverRadius:5, tension:0.25, fill:false, order:2 });
+    pointRadius:0, tension:0.25, fill:false, order:2 });
 
   // FIRE target line
   ds.push({ label:'FIRE target', data:payload.target,
