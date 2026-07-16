@@ -182,6 +182,7 @@
       {% if chart_payload %}
       <div class="panel chart-panel">
         <div class="chart-toolbar">
+          <span class="zoom-hint">Ctrl+scroll to zoom · drag to pan</span>
           <button type="button" id="reset-zoom-btn" class="zoom-reset-btn" title="Reset zoom">↺ Reset zoom</button>
         </div>
         <canvas id="projectionChart"></canvas>
@@ -344,7 +345,11 @@ function chartOptions(payload) {
       },
       zoom: {
         pan: { enabled:true, mode:'x', threshold:5 },
-        zoom: { wheel:{ enabled:true }, pinch:{ enabled:true }, mode:'x' }
+        zoom: { 
+          wheel:{ enabled:true, modifierKey:'ctrl' },
+          pinch:{ enabled:true },
+          mode:'x'
+        }
       }
     },
     scales: {
@@ -446,19 +451,22 @@ function doLiveUpdate() {
   .finally(function(){ _liveRunning = false; });
 }
 
-// Attach live-update listeners
-document.querySelectorAll('#fc-form input[type="range"]').forEach(function(s){
-  s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
-});
-document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
-  cb.addEventListener('change', function(){ scheduleLiveUpdate(150); });
-});
-document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
-  n.addEventListener('change', function(){ scheduleLiveUpdate(600); });
-  n.addEventListener('blur',   function(){ scheduleLiveUpdate(600); });
-});
+// Attach live-update listeners — delayed 500ms to avoid firing on page load
+// (browser may fire change/blur events when auto-filling form fields)
+setTimeout(function() {
+  document.querySelectorAll('#fc-form input[type="range"]').forEach(function(s){
+    s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
+  });
+  document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
+    cb.addEventListener('change', function(){ scheduleLiveUpdate(150); });
+  });
+  document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
+    n.addEventListener('change', function(){ scheduleLiveUpdate(600); });
+    n.addEventListener('blur',   function(){ scheduleLiveUpdate(600); });
+  });
+}, 500);
 
-// File upload → full reload (can't handle server-side file processing in JSON mode)
+// File upload → full reload
 var fileInput = document.getElementById('savings_diary');
 if (fileInput) fileInput.addEventListener('change', function(){
   document.getElementById('fc-form').submit();
