@@ -140,3 +140,11 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 
 /* ── Results panel keeps proper spacing ── */
 .results-panel { /* inherits .panel */ }
+
+.zoom-hint {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--mute);
+  align-self: center;
+  margin-right: auto;
+}
