@@ -1,0 +1,100 @@
+{% if error %}
+<div class="error-banner">
+  <p class="error-label">Could not calculate</p>
+  <p>{{ error }}</p>
+</div>
+{% elif display %}
+<div class="panel results-panel">
+  {% if display.reachable %}
+    <p class="result-label">{% if display.is_partial %}Partial FIRE{% else %}Time to FIRE{% endif %}</p>
+    <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
+    <p class="result-sub">{{ display.fire_date }}</p>
+    {% if display.scenarios %}
+    <div class="scenario-rows">
+      {% for s in display.scenarios %}
+      <div class="scenario-row">
+        <span class="scenario-dot" style="background:{{ s.color }}"></span>
+        <span class="scenario-label" style="color:{{ s.color }}">{{ s.label }}</span>
+        <span class="scenario-time" style="color:{{ s.color }}">
+          {% if s.reachable %}{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}{% else %}not reachable{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% else %}
+    <p class="result-label">Not reachable</p>
+    <p class="result-sub unreachable">Savings and/or return too low. Try adjusting assumptions.</p>
+  {% endif %}
+
+  <div class="ledger-rows">
+    <div class="ledger-row"><span>Savings rate</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
+    <div class="ledger-row"><span>Annual expenses</span><span class="num">{{ display.annual_expenses }}</span></div>
+    <div class="ledger-row"><span>{% if display.is_partial %}Partial target{% else %}FIRE number{% endif %}</span><span class="num">{{ display.fire_number }}</span></div>
+    <div class="ledger-row"><span>Real return</span><span class="num">{{ display.real_return_pct }}%</span></div>
+    {% if display.savings_growth_active %}
+    <div class="ledger-row"><span>Savings increase</span><span class="num">{{ display.real_savings_growth_pct }}%/yr</span></div>
+    {% endif %}
+    {% if display.monthly_income_today %}
+    <div class="ledger-row"><span>Monthly withdrawal (today)</span><span class="num">{{ display.monthly_income_today }}/mo</span></div>
+    <div class="ledger-row"><span>Same amount in {{ display.fire_year }}</span><span class="num highlight">{{ display.monthly_income_nominal }}/mo</span></div>
+    {% endif %}
+    {% if display.is_partial and display.desired_monthly_income_today %}
+    <div class="ledger-row"><span>Target (today)</span><span class="num">{{ display.desired_monthly_income_today }}/mo</span></div>
+    {% if display.desired_monthly_income_future %}
+    <div class="ledger-row"><span>Target in {{ display.future_year }}</span><span class="num">{{ display.desired_monthly_income_future }}/mo</span></div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {% if display.coast_fire_number %}
+  <div class="coast-panel">
+    <p class="result-label">Coast FIRE</p>
+    {% if display.already_coast %}
+      <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
+    {% else %}
+      <p class="big-number coast-num">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
+      <p class="result-sub">{{ display.coast_date }}</p>
+    {% endif %}
+    <div class="ledger-rows">
+      <div class="ledger-row"><span>Coast FIRE number</span><span class="num">{{ display.coast_fire_number }}</span></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if display.st_target_amount %}
+  <div class="coast-panel">
+    <p class="result-label">Required savings — {{ display.st_years }}y / {{ display.st_income }}/mo</p>
+    {% if display.st_already_enough %}
+      <p class="coast-achieved">✓ Already saving enough.</p>
+      <p class="result-sub">You could save {{ display.st_gap }} less/mo and still hit your target.</p>
+    {% else %}
+      <p class="big-number" style="color:var(--brick);font-size:clamp(1.6rem,3vw,2.2rem)">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
+    {% endif %}
+    <div class="ledger-rows">
+      <div class="ledger-row"><span>Target amount</span><span class="num">{{ display.st_target_amount }}</span></div>
+      <div class="ledger-row"><span>Currently saving</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
+      {% if not display.st_already_enough %}
+      <div class="ledger-row"><span>Monthly gap</span><span class="num" style="color:var(--brick)">+{{ display.st_gap }}/mo</span></div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if display.savings_milestones %}
+  <div class="coast-panel">
+    <p class="result-label">Savings progression ({{ values.savings_growth_pct }}% real/yr)</p>
+    <table class="milestone-table">
+      <thead><tr><th>Year</th><th>Today's money</th><th>Nominal</th></tr></thead>
+      <tbody>
+        {% for m in display.savings_milestones %}
+        <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
+          <td>{{ m.year }}</td><td class="num">{{ m.real }}/mo</td><td class="num highlight">{{ m.nominal }}/mo</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
