@@ -181,7 +181,13 @@
     <div class="chart-col">
       {% if chart_payload %}
       <div class="panel chart-panel">
-        <canvas id="projectionChart"></canvas>
+        <div class="chart-wrap">
+          <canvas id="projectionChart"></canvas>
+        </div>
+        <div class="chart-toolbar">
+          <span class="zoom-hint">Click and drag to zoom · </span>
+          <button type="button" id="reset-zoom-btn" class="zoom-reset-btn">↺ Reset</button>
+        </div>
       </div>
       {% else %}
       <div class="panel chart-empty">
@@ -210,8 +216,9 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
-// Disable all data-point dots globally — individual datasets override where needed
 if (typeof Chart !== 'undefined') {
   Chart.defaults.elements.point.radius = 0;
   Chart.defaults.elements.point.hoverRadius = 0;
@@ -340,6 +347,19 @@ function chartOptions(payload) {
             return lbl + ': ' + moneyFmt.format(v);
           }
         }
+      },
+      zoom: {
+        zoom: {
+          drag: {
+            enabled: true,
+            borderColor: 'rgba(59,110,165,0.7)',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(59,110,165,0.08)',
+            threshold: 5,
+          },
+          mode: 'xy',
+        }
+        // No wheel zoom, no pan — only drag to avoid automatic zooming bugs
       }
     },
     scales: {
@@ -382,6 +402,12 @@ function chartOptions(payload) {
     type: 'line',
     data: { datasets: buildDatasets(payload) },
     options: chartOptions(payload)
+  });
+
+  // Reset zoom — plugin handles the drag-select zoom itself
+  var resetBtn = document.getElementById('reset-zoom-btn');
+  if (resetBtn) resetBtn.addEventListener('click', function() {
+    window.fireChart.resetZoom();
   });
 })();
 {% endif %}
