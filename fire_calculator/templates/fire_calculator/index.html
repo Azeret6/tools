@@ -181,11 +181,18 @@
     <div class="chart-col">
       {% if chart_payload %}
       <div class="panel chart-panel">
+        {% if display %}
+        <p class="chart-subtitle">
+          {% if display.is_partial %}<span class="chart-mode-badge">Partial FIRE</span> target {{ display.monthly_income_today }}/mo · cíl {{ display.fire_number }} · {{ display.fire_date }}
+          {% else %}<span class="chart-mode-badge">Full FIRE</span> cíl {{ display.fire_number }} · {{ display.fire_date }}
+          {% endif %}
+        </p>
+        {% endif %}
         <div class="chart-wrap">
           <canvas id="projectionChart"></canvas>
         </div>
         <div class="chart-toolbar">
-          <span class="zoom-hint">Click and drag to zoom · </span>
+          <span class="zoom-hint">Označte oblast pro zoom · </span>
           <button type="button" id="reset-zoom-btn" class="zoom-reset-btn">↺ Reset</button>
         </div>
       </div>
@@ -299,13 +306,20 @@ function buildDatasets(payload) {
   }
 
   // Markers
-  function mkr(d, color) {
+  function mkr(d, color, size) {
     return { label:'__m', data:[d], borderColor:color, backgroundColor:color,
-      pointRadius:5, pointHoverRadius:7, pointStyle:'circle', showLine:false, order:1 };
+      pointRadius: size || 5, pointHoverRadius: (size || 5) + 2,
+      pointStyle:'circle', showLine:false, order:1 };
   }
-  if (payload.marker) ds.push(mkr(payload.marker, '#B3402F'));
-  if (payload.coastMarker) ds.push(mkr(payload.coastMarker, '#C07A20'));
-  // Scenario crossing markers intentionally omitted — dates shown in sidebar text
+  if (payload.marker) ds.push(mkr(payload.marker, '#B3402F', 6));
+  if (payload.coastMarker) ds.push(mkr(payload.coastMarker, '#C07A20', 5));
+  // Scenario crossing markers — small, same colour as their line
+  if (payload.scenarios) {
+    var sc_colors = ['#2F6F52', '#B3402F'];
+    payload.scenarios.forEach(function(s, i) {
+      if (s.marker) ds.push(mkr(s.marker, sc_colors[i], 4));
+    });
+  }
 
   return ds;
 }
@@ -336,7 +350,12 @@ function chartOptions(payload) {
           title: function(items){ return dateFmt(items[0].parsed.x); },
           label: function(item){
             var lbl = item.dataset.label;
-            if (lbl === '__m' || lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
+            if (lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
+            if (lbl === '__m') {
+              // Crossing marker — show it in tooltip with its label property
+              return item.dataset.data[0] && item.dataset.data[0].label
+                ? item.dataset.data[0].label : null;
+            }
             var v = item.parsed.y;
             if (lbl === 'Projected net worth' || lbl === 'Recorded history') {
               var lines = [(lbl === 'Recorded history' ? 'Saved (recorded)' : 'Projected') + ': ' + moneyFmt.format(v)];
@@ -441,9 +460,11 @@ function doLiveUpdate() {
     if (resp.chart_payload) {
       var payload = resp.chart_payload;
       if (window.fireChart) {
+        try { window.fireChart.resetZoom(); } catch(e) {}
         window.fireChart.data.datasets = buildDatasets(payload);
         if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
-        window.fireChart.update('active');
+        window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
+        window.fireChart.update('none');
       } else {
         // Chart didn't exist yet — build it now
         var canvas = document.getElementById('projectionChart');
