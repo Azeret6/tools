@@ -148,3 +148,44 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
   align-self: center;
   margin-right: auto;
 }
+
+/* ── Box-select zoom overlay ── */
+.chart-wrap {
+  position: relative;
+  cursor: crosshair;
+}
+#zoom-sel {
+  display: none;
+  position: absolute;
+  border: 1.5px solid #3B6EA5;
+  background: rgba(59,110,165,0.08);
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* ── Chart toolbar ── */
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--line);
+}
+.zoom-hint {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--mute);
+}
+.zoom-reset-btn {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--mute);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zoom-reset-btn:hover { color: var(--ink); border-color: var(--ink); }
