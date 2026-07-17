@@ -577,13 +577,12 @@ def load_savings_history(path: str) -> list[tuple[_dt.date, float]]:
 def compute_projection_series(
     inputs: "FireInputs",
     result: "FireResult",
+    min_horizon_months: int = 0,
 ) -> tuple[list[_dt.date], list[float]]:
     """Compute the (dates, balances) series for the projection curve.
 
-    When `result.real_savings_growth_pct` is non-zero, a month-by-month
-    simulation is used; otherwise the closed-form `_balance_at_month` is
-    used.  The horizon is extended to show both the FIRE crossing and the
-    Coast FIRE crossing (if applicable).
+    `min_horizon_months` forces the series to extend at least this far —
+    used so that scenario projections always match the main projection's length.
     """
     monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
 
@@ -595,6 +594,9 @@ def compute_projection_series(
     # Extend horizon to show Coast FIRE crossing point if it falls later.
     if result.months_to_coast is not None:
         horizon_months = max(horizon_months, round(result.months_to_coast) + 6)
+
+    # Enforce caller-supplied minimum (used so scenario projections match main).
+    horizon_months = max(horizon_months, min_horizon_months)
 
     anchor_date = inputs.as_of_date
     n = horizon_months + 1
