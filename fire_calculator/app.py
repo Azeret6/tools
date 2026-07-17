@@ -73,6 +73,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
     the projection curve, the recorded history (if any), a horizontal
     target line, and the crossing-point marker."""
     dates, balances = fc.compute_projection_series(inputs, result)
+    main_horizon_months = len(dates) - 1  # passed to scenarios so they match
     projection_points = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates, balances)]
 
     history_points = []
@@ -127,6 +128,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
         "coastMarker": coast_marker_point,
         "coastFireNumber": result.coast_fire_number,
         "xMax": x_max,
+        "mainHorizonMonths": main_horizon_months,
     }
 
 
@@ -364,17 +366,17 @@ def index():
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
-                # ±5 % savings rate scenarios (shown as coloured lines on chart).
+                # ±5 % savings rate scenarios
                 if values["scenarios"] and result.months_to_fire is not None:
                     delta = inputs.annual_income * 5 / 100 / 12
                     scenario_defs = [
                         ("+5 % savings rate", +delta, "#2F6F52"),
                         ("−5 % savings rate", -delta, "#B3402F"),
                     ]
-                    scenario_results = []
+
+                    # Phase 1: compute all scenario results (no projections yet)
+                    phase1 = []
                     for label, sign, color in scenario_defs:
-                        new_savings = max(0.0, inputs.monthly_savings + sign)
-                        # Use the per-month delta, not sign directly
                         new_savings = max(0.0, inputs.monthly_savings + delta * (1 if sign > 0 else -1))
                         inp_s = fc.FireInputs(
                             current_net_worth=inputs.current_net_worth,
@@ -390,8 +392,44 @@ def index():
                             res_s = fc.calculate_fire(inp_s)
                         except ValueError:
                             continue
-                        dates_s, balances_s = fc.compute_projection_series(inp_s, res_s)
-                        proj_s = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates_s, balances_s)]
+                        phase1.append((label, color, inp_s, res_s))
+
+                    # Phase 2: find the maximum natural horizon across all projections
+                    def _natural_horizon(res):
+                        if res.months_to_fire is not None:
+                            h = max(round(res.months_to_fire * 1.15), round(res.months_to_fire) + 6)
+                        else:
+                            h = 40 * 12
+                        if res.months_to_coast is not None:
+                            h = max(h, round(res.months_to_coast) + 6)
+                        return h
+
+                    max_horizon = _natural_horizon(result)
+                    for _, _, _, res_s in phase1:
+                        max_horizon = max(max_horizon, _natural_horizon(res_s))
+
+                    # Phase 3: recompute ALL projections with the unified horizon
+                    dates_main, bal_main = fc.compute_projection_series(
+                        inputs, result, min_horizon_months=max_horizon
+                    )
+                    context["chart_payload"]["projection"] = [
+                        {"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates_main, bal_main)
+                    ]
+                    new_x_max = context["chart_payload"]["projection"][-1]["x"]
+                    context["chart_payload"]["xMax"] = new_x_max
+
+                    # Extend horizontal target lines to new xMax
+                    for key in ("target", "coastTarget"):
+                        pts = context["chart_payload"].get(key)
+                        if pts and len(pts) == 2:
+                            pts[1]["x"] = new_x_max
+
+                    scenario_results = []
+                    for label, color, inp_s, res_s in phase1:
+                        dates_s, bal_s = fc.compute_projection_series(
+                            inp_s, res_s, min_horizon_months=max_horizon
+                        )
+                        proj_s = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates_s, bal_s)]
                         marker_s = None
                         if res_s.months_to_fire is not None and res_s.fire_date is not None:
                             marker_s = {
@@ -410,6 +448,7 @@ def index():
                             "reachable": res_s.months_to_fire is not None,
                             "fire_number": res_s.fire_number,
                         })
+
                     context["chart_payload"]["scenarios"] = scenario_results
                     context["display"]["scenarios"] = [
                         {
