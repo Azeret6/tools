@@ -425,18 +425,45 @@ def index():
                             pts[1]["x"] = new_x_max
 
                     scenario_results = []
+                    main_fire_number = result.fire_number  # the target line on the chart
                     for label, color, inp_s, res_s in phase1:
                         dates_s, bal_s = fc.compute_projection_series(
                             inp_s, res_s, min_horizon_months=max_horizon
                         )
                         proj_s = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates_s, bal_s)]
+
                         marker_s = None
-                        if res_s.months_to_fire is not None and res_s.fire_date is not None:
-                            marker_s = {
-                                "x": _to_epoch_ms(res_s.fire_date),
-                                "y": res_s.fire_number,
-                                "label": f"{label}: {res_s.fire_date.strftime('%B %Y')}",
-                            }
+                        if result.is_partial:
+                            # Partial FIRE: fixed target for all scenarios — find when
+                            # scenario crosses the SAME target line (main_fire_number)
+                            for d, v in zip(dates_s, bal_s):
+                                if v >= main_fire_number:
+                                    months_elapsed = (
+                                        (d.year - inp_s.as_of_date.year) * 12
+                                        + (d.month - inp_s.as_of_date.month)
+                                    )
+                                    yrs, mos = divmod(months_elapsed, 12)
+                                    marker_s = {
+                                        "x": _to_epoch_ms(d),
+                                        "y": main_fire_number,
+                                        "label": f"{label}: {d.strftime('%B %Y')} ({yrs}y {mos}m)",
+                                    }
+                                    break
+                        else:
+                            # Full FIRE: each scenario has its own target (different expenses).
+                            # Show marker at scenario's own fire_number — dot sits on its
+                            # own (implied) target level, making the difference visible.
+                            if res_s.months_to_fire is not None and res_s.fire_date is not None:
+                                months_elapsed = (
+                                    (res_s.fire_date.year - inp_s.as_of_date.year) * 12
+                                    + (res_s.fire_date.month - inp_s.as_of_date.month)
+                                )
+                                yrs, mos = divmod(months_elapsed, 12)
+                                marker_s = {
+                                    "x": _to_epoch_ms(res_s.fire_date),
+                                    "y": res_s.fire_number,
+                                    "label": f"{label}: {res_s.fire_date.strftime('%B %Y')} ({yrs}y {mos}m)",
+                                }
                         scenario_results.append({
                             "label": label,
                             "color": color,
