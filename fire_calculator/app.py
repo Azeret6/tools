@@ -366,6 +366,19 @@ def index():
 
                 context["chart_payload"] = _build_chart_payload(inputs, result, history)
 
+                # Subtitle data for the badge above the chart — needed for live updates
+                # because the badge is outside #results-area and isn't replaced by doLiveUpdate
+                if result.is_partial and result.desired_monthly_income_today is not None:
+                    _mode = "Partial FIRE"
+                    _detail = (f"target {result.desired_monthly_income_today:,.0f}/mo"
+                               f" · cíl {result.fire_number:,.0f}"
+                               + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
+                else:
+                    _mode = "Full FIRE"
+                    _detail = (f"cíl {result.fire_number:,.0f}"
+                               + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
+                context["chart_payload"]["subtitle"] = {"mode": _mode, "detail": _detail}
+
                 # ±5 % savings rate scenarios
                 if values["scenarios"] and result.months_to_fire is not None:
                     delta = inputs.annual_income * 5 / 100 / 12
