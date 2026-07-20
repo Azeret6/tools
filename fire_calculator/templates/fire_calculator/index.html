@@ -459,6 +459,14 @@ function doLiveUpdate() {
     // Update chart
     if (resp.chart_payload) {
       var payload = resp.chart_payload;
+
+      // Update badge/subtitle above chart (outside #results-area so not auto-replaced)
+      if (payload.subtitle) {
+        var subtitleEl = document.querySelector('.chart-subtitle');
+        if (subtitleEl) subtitleEl.innerHTML =
+          '<span class="chart-mode-badge">' + payload.subtitle.mode + '</span> ' + payload.subtitle.detail;
+      }
+
       if (window.fireChart) {
         try { window.fireChart.resetZoom(); } catch(e) {}
         window.fireChart.data.datasets = buildDatasets(payload);
