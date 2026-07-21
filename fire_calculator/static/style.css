@@ -226,3 +226,6 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 .field-disabled label, .field-disabled .hint { color:var(--line) !important; }
 .field-disabled input { opacity:0.35; pointer-events:none; background:var(--paper); }
 .field-disabled .checkbox-label { opacity:0.35; pointer-events:none; }
+
+/* readOnly inputs look same as disabled (but still submit values) */
+input[readonly] { opacity: 0.35; pointer-events: none; }
