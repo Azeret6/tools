@@ -123,8 +123,23 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
   grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
   align-items: end;
 }
-.top-calc { display:flex; align-items:flex-end; }
-.top-calc .calculate-btn { white-space:nowrap; margin-top:0; }
+.zone-top .field-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.top-calc {
+  display: flex;
+  align-items: flex-end;
+  padding-top: 0; /* button aligns to bottom with field inputs */
+}
+.top-calc .calculate-btn {
+  white-space: nowrap;
+  margin-top: 0;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+  width: auto;
+}
 
 /* ── Conditional fields spacing ── */
 .conditional-field { margin-bottom:0.75rem; }
@@ -229,3 +244,10 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 
 /* readOnly inputs look same as disabled (but still submit values) */
 input[readonly] { opacity: 0.35; pointer-events: none; }
+
+/* Ensure all zone-top inputs have identical rendered height for button alignment */
+.zone-top input[type="number"],
+.zone-top input[type="file"] {
+  height: 2.25rem;
+  box-sizing: border-box;
+}
