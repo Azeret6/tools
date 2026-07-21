@@ -29,35 +29,35 @@
 
   <!-- ═══ ZONE 1: Top inputs + Calculate (full width) ═══ -->
   <div class="zone-top panel">
+    <div class="top-labels">
+      <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
+      <label for="current_net_worth">Current net worth</label>
+      <label for="annual_income">Annual net income</label>
+      <label for="monthly_savings">Monthly savings</label>
+      <span></span>
+    </div>
     <div class="top-inputs">
-      <div class="field-group">
-        <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
+      <div>
         <input type="file" id="savings_diary" name="savings_diary" accept=".csv"
           title="Columns: date, net_worth — most recent entry sets your current net worth">
         {% if history_count %}<p class="hint loaded">{{ history_count }} entries loaded.</p>{% endif %}
       </div>
-      <div class="field-group">
-        <label for="current_net_worth">Current net worth</label>
+      <div>
         <input type="number" step="any" min="0" inputmode="decimal"
           id="current_net_worth" name="current_net_worth"
           value="{{ values.current_net_worth }}" placeholder="e.g. 20000">
       </div>
-      <div class="field-group">
-        <label for="annual_income">Annual net income</label>
+      <div>
         <input type="number" step="any" min="0.01" inputmode="decimal"
           id="annual_income" name="annual_income"
           value="{{ values.annual_income }}" placeholder="e.g. 500000" required>
       </div>
-      <div class="field-group">
-        <label for="monthly_savings">Monthly savings</label>
+      <div>
         <input type="number" step="any" min="0" inputmode="decimal"
           id="monthly_savings" name="monthly_savings"
           value="{{ values.monthly_savings }}" placeholder="e.g. 10000" required>
       </div>
-      <div class="top-calc">
-        <label class="top-calc-label">&nbsp;</label>
-        <button type="submit" class="calculate-btn">Calculate</button>
-      </div>
+      <button type="submit" class="calculate-btn">Calculate</button>
     </div>
   </div>
 
