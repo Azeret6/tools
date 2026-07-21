@@ -151,6 +151,7 @@ def index():
         "savings_target_income": "",
         "savings_target_years": "",
         "scenarios": False,
+        "calc_mode": "time_to_fire",
     }
     context = {
         "values": values,
@@ -191,6 +192,16 @@ def index():
         values["savings_target_income"] = form.get("savings_target_income", "")
         values["savings_target_years"] = form.get("savings_target_years", "")
         values["scenarios"] = form.get("scenarios") == "on"
+        # New: calc_mode radio replaces the three checkboxes
+        calc_mode = form.get("calc_mode", "time_to_fire")
+        values["calc_mode"] = calc_mode
+        # Map to existing flags so the rest of the logic is unchanged
+        values["partial_fire"]   = calc_mode == "time_to_fire" and bool(form.get("desired_monthly_income", "").strip())
+        values["coast_fire"]     = calc_mode == "coast_fire"
+        values["savings_target"] = calc_mode == "required_savings"
+        # In required_savings mode, desired_monthly_income doubles as savings_target_income
+        if calc_mode == "required_savings":
+            values["savings_target_income"] = form.get("desired_monthly_income", "")
 
         history = None
         as_of_date = _dt.date.today()
@@ -246,7 +257,9 @@ def index():
                 "retirement age that is higher than your current age."
             )
 
-        savings_target_income = _parse_form_float(form, "savings_target_income")
+        savings_target_income = _parse_form_float(
+            form, "savings_target_income" if calc_mode != "required_savings" else "desired_monthly_income"
+        )
         savings_target_years = _parse_form_float(form, "savings_target_years")
 
         if not context["error"] and values["savings_target"] and (
