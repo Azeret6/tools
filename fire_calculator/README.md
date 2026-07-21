@@ -1,14 +1,14 @@
 # FIRE Calculator
 
 A tool for financial independence planning. Enter your income, savings,
-and a few assumptions — get an estimate of how long until your
-investments can sustainably cover your expenses.
+and a few assumptions — choose what you want to calculate and get
+a clear projection with an interactive chart.
 
 Use whichever interface suits you — both share the same calculation
 code, so results are always identical:
 
 - **Command line** (`fire_calculator.py`) — runs anywhere Python is installed.
-- **Browser** (`app.py`) — sliders, checkboxes, and an interactive chart.
+- **Browser** (`app.py`) — interactive chart, live-updating sliders, scenario comparison.
 
 ## Running the web interface
 
@@ -17,58 +17,85 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-Then open **http://127.0.0.1:5000**. The app opens automatically in your
-default browser. To run it alongside the other tools from one page,
-use `../hub` instead.
+Then open **http://127.0.0.1:5000**. To run it alongside the other
+tools from one page, use `../hub` instead.
 
-## Inputs
+## Layout
 
-All amounts must be in the **same currency**. Everything is in
-**today's money** (real terms) — you never need to think in inflated
-future prices.
+The web interface has three zones:
 
-| Input | Description |
-|---|---|
-| Current net worth | Your invested assets today — can be left blank (treated as 0) |
-| Annual income | Net (take-home) annual income |
-| Monthly savings | Amount you invest every month |
-| Nominal annual return *(slider, default 8%)* | Expected investment return before inflation |
-| Inflation rate *(slider, default 3%)* | Expected long-term inflation |
-| Withdrawal rate *(slider, default 4%)* | Safe withdrawal rate used to size your FIRE number. Recommended range: 3–5% |
-| Annual savings increase *(slider, default 0%)* | How much more you plan to invest each year, in nominal terms. 0 = constant savings |
-| Savings diary CSV *(optional)* | A personal log of `date,net_worth` entries — see below |
+1. **Top bar** — the four core inputs (savings diary, net worth, income, savings)
+   plus the Calculate button, always visible.
+2. **Sidebar + chart** — a narrow left panel with the calculation mode
+   selector, assumptions, and results; a large interactive chart on the right.
+3. **Reference table** — years to FIRE at savings rates 10–90%, using your
+   current assumptions, starting from zero.
 
-## Optional modes (checkboxes)
+## Calculation modes
 
-All modes can be combined freely. Shared inputs (income, return,
-inflation, etc.) are entered once.
+Select one at a time using the radio buttons. All input fields stay
+visible and remember their values when you switch modes — only the
+irrelevant ones are greyed out.
 
-### Partial FIRE
-Targets a specific sustainable monthly income rather than full
-financial independence — useful for a pension top-up or a part-time
-retirement scenario. The target becomes `(desired income × 12) /
-withdrawal rate`. The calculator also shows what that amount will be
-worth in nominal terms in the year you reach it.
+### When will I reach FI?
+The main mode. Answers: *how many years and months until my portfolio
+can cover my expenses?*
 
-### Coast FIRE
-The amount you need saved *now* so that — even if you stopped
-contributing entirely — compound growth alone would reach your FIRE
-number by your chosen retirement age. Requires your current age and
-target retirement age. Shown as a separate line on the chart.
+- Leave **target monthly income** empty → calculates full financial
+  independence (expenses = income − savings × 12).
+- Fill **target monthly income** → calculates *Partial FIRE*: the
+  earlier point where your portfolio sustains that specific amount.
 
-### Required monthly savings
-The inverse calculation: given a desired monthly income and a fixed
-time horizon, how much do you need to set aside each month to get
-there? Useful if you have a deadline (e.g. "I want to retire in 20
-years") rather than asking how long it will take.
+### How much must I save monthly?
+Inverse calculation: given a desired retirement income and a time
+horizon, computes the required monthly savings. The Monthly savings
+field in the top bar becomes an output (greyed as input).
+
+### When can I stop saving?
+Calculates your **Coast FIRE** number — the portfolio value at which
+compound growth alone, with no further contributions, reaches your
+FIRE target by your chosen retirement age.
+
+## ±5 % scenarios
+
+A cross-mode checkbox that adds two extra curves to the chart:
+
+- **Green band (+5 pp)** — what happens if you save 5 percentage
+  points more of your income each month. Both the portfolio grows
+  faster and the FIRE target drops (you spend less).
+- **Red line (−5 pp)** — the mirror image: higher target, slower growth.
+
+Crossing markers show exactly when each scenario reaches your FIRE goal.
+Active in "When will I reach FI?" and "When can I stop saving?" modes.
+
+## Chart
+
+- **Drag to zoom** — click and drag to select any rectangular area;
+  the chart zooms into it. Click **↺ Reset** to restore the full view.
+- **Hover tooltip** — shows projected net worth, distance to target,
+  and scenario values at any date.
+- **Scenario band** — a filled area between +5 % and −5 % curves,
+  with the main projection as a solid blue line through the middle.
+- **Crossing markers** — coloured dots where each projection crosses
+  the FIRE target line.
+
+## Assumptions (sliders)
+
+| Assumption | Default | Notes |
+|---|---|---|
+| Nominal annual return | 8 % | Before inflation |
+| Inflation rate | 3 % | Long-run planning figure |
+| Withdrawal rate | 4 % | Safe withdrawal rate (recommended 3–5 %) |
+| Annual savings increase | 0 % | *Real* annual increase in savings amount. 2 % means you invest 2 % more purchasing power each year. 0 = constant. |
+
+All calculations use the **Fisher equation** for real returns:
+`real return = (1 + nominal) / (1 + inflation) − 1`.
+Everything is expressed in today's money (real terms) throughout.
 
 ## Savings diary (optional)
 
-Keep a personal log of your net worth over time and load it into the
-calculator. The most recent entry is used as your current net worth
-and as the starting date for the projection.
-
-Format — a CSV with exactly two columns:
+Keep a personal log of your net worth over time. The most recent entry
+is used as your starting balance and date.
 
 ```csv
 date,net_worth
@@ -76,52 +103,34 @@ date,net_worth
 2025-06-01,18500
 ```
 
-- Dates must be in `YYYY-MM-DD` format.
-- Rows that can't be parsed are skipped without failing.
-- The chart shows your recorded history (green) alongside the
-  projection (blue).
-- A sample file, `savings_log_example.csv`, is included as a template.
+- Dates in `YYYY-MM-DD` format; unparseable rows are skipped silently.
+- Recorded history appears as a green line on the chart.
+- Name your real file `savings_log_private.csv` — `.gitignore` excludes
+  `*_private.csv` files automatically.
+- A sample file `savings_log_example.csv` is included as a template.
 
-Name your real diary `savings_log_private.csv` — the repo's
-`.gitignore` keeps `*_private.csv` files out of version control
-automatically.
+## Defaults & assumptions
 
-## Output
-
-- Savings rate (% of income invested)
-- Annual expenses (derived as `income − savings × 12`)
-- FIRE number — the net worth you're aiming for
-- Time to financial independence — years and months, plus calendar date
-- Interactive chart — hover to see balance and distance to target at
-  any point; includes Coast FIRE line and history if applicable
-- Reference table — years to FIRE at savings rates from 10% to 90%,
-  using your own assumptions, starting from zero
-
-## Assumptions & defaults
-
-- **8% nominal return** — conservative blend between the S&P 500 long-run
-  average (~10%) and a globally diversified index such as the FTSE
-  All-World (~7–8%).
-- **3% inflation** — long-run historical average used as a planning default.
-- **4% withdrawal rate** — the Trinity Study's widely cited "4% rule".
-  Sustainable over a 30-year retirement with a balanced portfolio.
-- **Real return via the Fisher equation** — `(1 + nominal) / (1 + inflation) − 1`,
-  used consistently across all tools in this repository.
-- **Annual savings increase** — when set above 0%, modelled as a nominal
-  growth rate; converted to real terms via the Fisher equation. 0%
-  means constant savings in real terms (original behaviour).
+- **8 % nominal return** — conservative blend of S&P 500 long-run
+  average (~10 %) and a globally diversified index (~7–8 %).
+- **3 % inflation** — long-run historical average.
+- **4 % withdrawal rate** — the Trinity Study "4 % rule"; sustainable
+  over a 30-year retirement with a balanced portfolio.
 
 ## Limitations
 
-- No taxes, one-off windfalls, or spending changes in retirement.
-- Single-point estimate — no Monte Carlo or sequence-of-returns modelling.
-- The savings growth model assumes a fixed percentage increase each year;
-  real salary trajectories are more irregular.
+- No taxes, transaction costs, or fee drag.
+- No one-off events (windfalls, large purchases, career breaks).
+- Single deterministic projection — no Monte Carlo or historical
+  sequence-of-returns modelling.
+- Savings growth assumes a fixed annual percentage; real salary paths
+  are irregular.
 
 ## Requirements
 
 Python 3.9+. The command-line version needs `matplotlib`; the web
-interface also needs `flask`.
+interface also needs `flask` and `hammerjs`/`chartjs-plugin-zoom`
+(loaded from CDN at runtime, no local install needed).
 
 ```bash
 pip install -r requirements.txt
