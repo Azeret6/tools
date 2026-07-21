@@ -67,68 +67,70 @@
     <div class="sidebar">
       <div class="panel options-panel">
 
-        <div class="checkbox-group">
-          <label class="checkbox-label" for="partial_fire">
-            <input type="checkbox" id="partial_fire" name="partial_fire" {% if values.partial_fire %}checked{% endif %}>
-            <strong>Partial FIRE</strong>
+        <!-- Mode selector -->
+        <p class="section-label">Co chceš spočítat?</p>
+        <div class="mode-group">
+          <label class="mode-option {% if values.calc_mode == 'time_to_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="time_to_fire"
+              {% if values.calc_mode == 'time_to_fire' %}checked{% endif %}>
+            Za kolik let dosáhnu FI?
           </label>
-          <p class="hint">Target a specific monthly income instead of full independence.</p>
+          <label class="mode-option {% if values.calc_mode == 'required_savings' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="required_savings"
+              {% if values.calc_mode == 'required_savings' %}checked{% endif %}>
+            Kolik musím měsíčně odkládat?
+          </label>
+          <label class="mode-option {% if values.calc_mode == 'coast_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="coast_fire"
+              {% if values.calc_mode == 'coast_fire' %}checked{% endif %}>
+            Kdy mohu přestat spořit?
+          </label>
         </div>
-        <div id="partial_fire_field" {% if not values.partial_fire %}hidden{% endif %} class="conditional-field">
-          <div class="field-group">
-            <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
-            <input type="number" step="any" min="0" inputmode="decimal"
-              id="desired_monthly_income" name="desired_monthly_income"
-              value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+
+        <hr class="divider">
+
+        <!-- Cílový měsíční příjem — aktivní v time_to_fire a required_savings -->
+        <div class="field-group mode-field" id="field-target-income">
+          <label for="desired_monthly_income">Cílový měsíční příjem <span class="optional">(dnešní peníze)</span></label>
+          <input type="number" step="any" min="0" inputmode="decimal"
+            id="desired_monthly_income" name="desired_monthly_income"
+            value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+          <p class="hint" id="hint-target-income"></p>
+        </div>
+
+        <!-- Horizont — pouze v required_savings -->
+        <div class="field-group mode-field" id="field-horizon">
+          <label for="savings_target_years">Horizont <span class="optional">(let)</span></label>
+          <input type="number" step="0.5" min="0.5" inputmode="decimal"
+            id="savings_target_years" name="savings_target_years"
+            value="{{ values.savings_target_years }}" placeholder="e.g. 20">
+        </div>
+
+        <!-- Věky — pouze v coast_fire -->
+        <div class="mode-field two-col" id="field-ages">
+          <div>
+            <label for="current_age">Aktuální věk</label>
+            <input type="number" min="1" max="100" step="1"
+              id="current_age" name="current_age"
+              value="{{ values.current_age }}" placeholder="e.g. 30">
+          </div>
+          <div>
+            <label for="retirement_age">Věk odchodu</label>
+            <input type="number" min="1" max="100" step="1"
+              id="retirement_age" name="retirement_age"
+              value="{{ values.retirement_age }}" placeholder="e.g. 65">
           </div>
         </div>
 
-        <div class="checkbox-group">
-          <label class="checkbox-label" for="coast_fire">
-            <input type="checkbox" id="coast_fire" name="coast_fire" {% if values.coast_fire %}checked{% endif %}>
-            <strong>Coast FIRE</strong>
-          </label>
-          <p class="hint">When can you stop contributing and let growth do the rest?</p>
-        </div>
-        <div id="coast_fire_fields" {% if not values.coast_fire %}hidden{% endif %} class="conditional-field">
-          <div class="field-group two-col">
-            <div>
-              <label for="current_age">Current age</label>
-              <input type="number" min="1" max="100" step="1" id="current_age" name="current_age" value="{{ values.current_age }}" placeholder="e.g. 30">
-            </div>
-            <div>
-              <label for="retirement_age">Retirement age</label>
-              <input type="number" min="1" max="100" step="1" id="retirement_age" name="retirement_age" value="{{ values.retirement_age }}" placeholder="e.g. 60">
-            </div>
-          </div>
-        </div>
+        <hr class="divider">
 
-        <div class="checkbox-group">
-          <label class="checkbox-label" for="savings_target">
-            <input type="checkbox" id="savings_target" name="savings_target" {% if values.savings_target %}checked{% endif %}>
-            <strong>Required savings</strong>
-          </label>
-          <p class="hint">How much must you save monthly to reach a target income in a fixed time?</p>
-        </div>
-        <div id="savings_target_fields" {% if not values.savings_target %}hidden{% endif %} class="conditional-field">
-          <div class="field-group two-col">
-            <div>
-              <label for="savings_target_income">Target income/mo <span class="optional">(today)</span></label>
-              <input type="number" step="any" min="0" inputmode="decimal" id="savings_target_income" name="savings_target_income" value="{{ values.savings_target_income }}" placeholder="e.g. 30000">
-            </div>
-            <div>
-              <label for="savings_target_years">Horizon <span class="optional">(yrs)</span></label>
-              <input type="number" step="0.5" min="0.5" inputmode="decimal" id="savings_target_years" name="savings_target_years" value="{{ values.savings_target_years }}" placeholder="e.g. 20">
-            </div>
-          </div>
-        </div>
-
+        <!-- ±5 % scenarios — cross-mode checkbox -->
         <div class="checkbox-group">
           <label class="checkbox-label" for="scenarios">
             <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
             <strong>±5 % scenarios</strong>
           </label>
-          <p class="hint">Show what happens if you save 5 pp more (green band) or less (red).</p>
+          <p class="hint">Zobrazí pásmo: o 5 pp více (zelená) / méně (červená) úspor.</p>
         </div>
 
         <hr class="divider">
@@ -241,15 +243,49 @@ document.querySelectorAll('input[type="range"]').forEach(function(s) {
   s.addEventListener('input', sync); sync();
 });
 
-// ── Checkbox show/hide ──────────────────────────────────────────
-function toggleField(cbId, fieldId) {
-  var cb = document.getElementById(cbId);
-  var el = document.getElementById(fieldId);
-  if (cb && el) cb.addEventListener('change', function(){ el.hidden = !cb.checked; });
+// ── Mode switching ──────────────────────────────────────────────
+function applyMode(mode) {
+  var monthlySavingsGroup = document.getElementById('monthly_savings').closest('.field-group');
+  var targetGroup  = document.getElementById('field-target-income');
+  var horizonGroup = document.getElementById('field-horizon');
+  var agesGroup    = document.getElementById('field-ages');
+  var hintTarget   = document.getElementById('hint-target-income');
+  var scenariosGroup = document.getElementById('scenarios').closest('.checkbox-group');
+
+  // Enable everything first
+  [targetGroup, horizonGroup, agesGroup, monthlySavingsGroup, scenariosGroup].forEach(function(g){ g.classList.remove('field-disabled'); });
+  ['desired_monthly_income','savings_target_years','current_age','retirement_age','monthly_savings'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.disabled = false;
+  });
+
+  if (mode === 'time_to_fire') {
+    hintTarget.textContent = 'Nepovinné — prázdné = plná nezávislost, vyplněné = Partial FIRE.';
+    horizonGroup.classList.add('field-disabled'); document.getElementById('savings_target_years').disabled = true;
+    agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
+
+  } else if (mode === 'required_savings') {
+    hintTarget.textContent = 'Povinné — jaký příjem chceš v důchodu.';
+    monthlySavingsGroup.classList.add('field-disabled'); document.getElementById('monthly_savings').disabled = true;
+    agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
+    scenariosGroup.classList.add('field-disabled'); document.getElementById('scenarios').disabled = true;
+
+  } else if (mode === 'coast_fire') {
+    hintTarget.textContent = '';
+    targetGroup.classList.add('field-disabled'); document.getElementById('desired_monthly_income').disabled = true;
+    horizonGroup.classList.add('field-disabled'); document.getElementById('savings_target_years').disabled = true;
+  }
+
+  document.querySelectorAll('.mode-option').forEach(function(el){
+    el.classList.toggle('mode-active', el.querySelector('input').value === mode);
+  });
 }
-toggleField('partial_fire', 'partial_fire_field');
-toggleField('coast_fire', 'coast_fire_fields');
-toggleField('savings_target', 'savings_target_fields');
+
+var _initMode = document.querySelector('input[name="calc_mode"]:checked');
+if (_initMode) applyMode(_initMode.value);
+
+document.querySelectorAll('input[name="calc_mode"]').forEach(function(r){
+  r.addEventListener('change', function(){ applyMode(r.value); scheduleLiveUpdate(200); });
+});
 
 // ── Chart helpers (shared by initial render + live update) ──────
 var NOW = Date.now();
