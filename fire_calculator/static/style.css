@@ -210,3 +210,19 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
   margin-right: 0.4rem;
   vertical-align: middle;
 }
+
+/* ── Mode selector (radio buttons) ── */
+.mode-group { display:flex; flex-direction:column; gap:0.35rem; margin-bottom:0.5rem; }
+.mode-option {
+  display:flex; align-items:center; gap:0.5rem;
+  padding:0.45rem 0.6rem; border:1px solid var(--line); border-radius:3px;
+  font-size:0.85rem; cursor:pointer; transition:border-color 0.1s, background 0.1s;
+}
+.mode-option:hover { border-color:var(--ledger); }
+.mode-option.mode-active { border-color:var(--ledger); background:rgba(47,111,82,0.06); font-weight:600; color:var(--ledger-dark); }
+.mode-option input[type="radio"] { accent-color:var(--ledger); flex-shrink:0; }
+
+/* ── Disabled / greyed fields ── */
+.field-disabled label, .field-disabled .hint { color:var(--line) !important; }
+.field-disabled input { opacity:0.35; pointer-events:none; background:var(--paper); }
+.field-disabled .checkbox-label { opacity:0.35; pointer-events:none; }
