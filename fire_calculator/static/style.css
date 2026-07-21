@@ -29,7 +29,7 @@ body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--fo
 
 /* ── LAYOUT ── */
 .zone-top { max-width:80rem; margin:0 auto 1.25rem; }
-.top-inputs { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:1rem; align-items:end; }
+.top-inputs { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr auto; gap:1rem; align-items:center; }
 @media(max-width:720px){ .top-inputs{ grid-template-columns:1fr 1fr; } }
 @media(max-width:480px){ .top-inputs{ grid-template-columns:1fr; } }
 
@@ -118,31 +118,21 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 .reference-table td { font-weight:600; color:var(--ledger-dark); font-variant-numeric:tabular-nums; }
 @media(max-width:700px){ .reference-table{ font-size:0.72rem; } .reference-table th,.reference-table td{ padding:0.28rem 0.12rem; } }
 
-/* ── Top bar Calculate button ── */
-.top-inputs {
+/* ── Top bar ── */
+.top-labels {
+  display: grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
-  align-items: end;
+  gap: 0 1rem;
+  margin-bottom: 0.3rem;
 }
-.zone-top .field-group {
-  display: flex;
-  flex-direction: column;
-}
-.top-calc {
-  display: flex;
-  flex-direction: column;
-}
-.top-calc-label {
-  display: block;
+.top-labels label, .top-labels span {
   font-size: 0.8rem;
   font-weight: 600;
-  margin-bottom: 0.3rem;
-  visibility: hidden; /* same space as real labels, but invisible */
+  display: block;
 }
-.top-calc .calculate-btn {
-  white-space: nowrap;
-  margin-top: 0;
-  width: auto;
-}
+.top-inputs > div { display: flex; }
+.top-inputs > div input { width: 100%; }
+.top-inputs .calculate-btn { margin-top: 0; white-space: nowrap; width: auto; }
 
 /* ── Conditional fields spacing ── */
 .conditional-field { margin-bottom:0.75rem; }
