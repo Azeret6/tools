@@ -68,39 +68,39 @@
       <div class="panel options-panel">
 
         <!-- Mode selector -->
-        <p class="section-label">Co chceš spočítat?</p>
+        <p class="section-label">What do you want to calculate?</p>
         <div class="mode-group">
           <label class="mode-option {% if values.calc_mode == 'time_to_fire' %}mode-active{% endif %}">
             <input type="radio" name="calc_mode" value="time_to_fire"
               {% if values.calc_mode == 'time_to_fire' %}checked{% endif %}>
-            Za kolik let dosáhnu FI?
+            When will I reach FI?
           </label>
           <label class="mode-option {% if values.calc_mode == 'required_savings' %}mode-active{% endif %}">
             <input type="radio" name="calc_mode" value="required_savings"
               {% if values.calc_mode == 'required_savings' %}checked{% endif %}>
-            Kolik musím měsíčně odkládat?
+            How much must I save monthly?
           </label>
           <label class="mode-option {% if values.calc_mode == 'coast_fire' %}mode-active{% endif %}">
             <input type="radio" name="calc_mode" value="coast_fire"
               {% if values.calc_mode == 'coast_fire' %}checked{% endif %}>
-            Kdy mohu přestat spořit?
+            When can I stop saving?
           </label>
         </div>
 
         <hr class="divider">
 
-        <!-- Cílový měsíční příjem — aktivní v time_to_fire a required_savings -->
+        <!-- Target monthly income — aktivní v time_to_fire a required_savings -->
         <div class="field-group mode-field" id="field-target-income">
-          <label for="desired_monthly_income">Cílový měsíční příjem <span class="optional">(dnešní peníze)</span></label>
+          <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
           <input type="number" step="any" min="0" inputmode="decimal"
             id="desired_monthly_income" name="desired_monthly_income"
             value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
           <p class="hint" id="hint-target-income"></p>
         </div>
 
-        <!-- Horizont — pouze v required_savings -->
+        <!-- Horizon — pouze v required_savings -->
         <div class="field-group mode-field" id="field-horizon">
-          <label for="savings_target_years">Horizont <span class="optional">(let)</span></label>
+          <label for="savings_target_years">Horizon <span class="optional">(let)</span></label>
           <input type="number" step="0.5" min="0.5" inputmode="decimal"
             id="savings_target_years" name="savings_target_years"
             value="{{ values.savings_target_years }}" placeholder="e.g. 20">
@@ -109,13 +109,13 @@
         <!-- Věky — pouze v coast_fire -->
         <div class="mode-field two-col" id="field-ages">
           <div>
-            <label for="current_age">Aktuální věk</label>
+            <label for="current_age">Current age</label>
             <input type="number" min="1" max="100" step="1"
               id="current_age" name="current_age"
               value="{{ values.current_age }}" placeholder="e.g. 30">
           </div>
           <div>
-            <label for="retirement_age">Věk odchodu</label>
+            <label for="retirement_age">Retirement age</label>
             <input type="number" min="1" max="100" step="1"
               id="retirement_age" name="retirement_age"
               value="{{ values.retirement_age }}" placeholder="e.g. 65">
@@ -130,7 +130,7 @@
             <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
             <strong>±5 % scenarios</strong>
           </label>
-          <p class="hint">Zobrazí pásmo: o 5 pp více (zelená) / méně (červená) úspor.</p>
+          <p class="hint">Shows a band: 5 pp more savings (green) or less (red).</p>
         </div>
 
         <hr class="divider">
@@ -172,7 +172,7 @@
 
       </div>{# end options-panel #}
 
-      <!-- Results (replaced on live update) -->
+      <!-- Results (replaced on live update) - OUTSIDE options panel -->
       <div id="results-area">
         {% include 'fire_calculator/_results.html' %}
       </div>
@@ -194,7 +194,7 @@
           <canvas id="projectionChart"></canvas>
         </div>
         <div class="chart-toolbar">
-          <span class="zoom-hint">Označte oblast pro zoom · </span>
+          <span class="zoom-hint">Click and drag to zoom · </span>
           <button type="button" id="reset-zoom-btn" class="zoom-reset-btn">↺ Reset</button>
         </div>
       </div>
@@ -254,18 +254,19 @@ function applyMode(mode) {
 
   // Enable everything first
   [targetGroup, horizonGroup, agesGroup, monthlySavingsGroup, scenariosGroup].forEach(function(g){ g.classList.remove('field-disabled'); });
-  ['desired_monthly_income','savings_target_years','current_age','retirement_age','monthly_savings'].forEach(function(id){
+  ['desired_monthly_income','savings_target_years','current_age','retirement_age'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.disabled = false;
   });
+  document.getElementById('monthly_savings').readOnly = false;
 
   if (mode === 'time_to_fire') {
-    hintTarget.textContent = 'Nepovinné — prázdné = plná nezávislost, vyplněné = Partial FIRE.';
+    hintTarget.textContent = 'Optional — leave empty for full independence, or set a target income for Partial FIRE.';
     horizonGroup.classList.add('field-disabled'); document.getElementById('savings_target_years').disabled = true;
     agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
 
   } else if (mode === 'required_savings') {
-    hintTarget.textContent = 'Povinné — jaký příjem chceš v důchodu.';
-    monthlySavingsGroup.classList.add('field-disabled'); document.getElementById('monthly_savings').disabled = true;
+    hintTarget.textContent = 'Required — your desired retirement income.';
+    monthlySavingsGroup.classList.add('field-disabled'); document.getElementById('monthly_savings').readOnly = true;
     agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
     scenariosGroup.classList.add('field-disabled'); document.getElementById('scenarios').disabled = true;
 
