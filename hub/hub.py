@@ -60,6 +60,12 @@ TOOLS = [
         "title": "Savings Target Calculator",
         "description": "Work out how much to save each month to reach a target retirement income.",
     },
+    {
+        "folder": "color_palette_generator",
+        "prefix": "/color-palette",
+        "title": "Color Palette Generator",
+        "description": "Generate colour palettes with harmony modes, style moods, and contrast checking.",
+    },
 ]
 
 
