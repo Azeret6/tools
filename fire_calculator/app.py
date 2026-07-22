@@ -118,6 +118,19 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
 
     x_max = max((p["x"] for p in projection_points), default=None)
 
+    # Milestones: 25 / 50 / 75 % of the FIRE target, with the date the
+    # projection first crosses each. Shown as subtle dashed lines on the
+    # chart and as a list in the results panel (b16).
+    milestones = []
+    for pct in (25, 50, 75):
+        value = result.fire_number * pct / 100
+        cross_ms = None
+        for p in projection_points:
+            if p["y"] >= value:
+                cross_ms = p["x"]
+                break
+        milestones.append({"pct": pct, "y": value, "crossMs": cross_ms})
+
     return {
         "projection": projection_points,
         "history": history_points,
@@ -129,6 +142,9 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
         "coastFireNumber": result.coast_fire_number,
         "xMax": x_max,
         "mainHorizonMonths": main_horizon_months,
+        "milestones": milestones,
+        "asOfMs": _to_epoch_ms(inputs.as_of_date),
+        "currentAge": inputs.current_age,
     }
 
 
@@ -392,6 +408,16 @@ def index():
                                + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
                 context["chart_payload"]["subtitle"] = {"mode": _mode, "detail": _detail}
 
+                # Milestones for the results panel (25/50/75 % of target + dates)
+                _ms_display = []
+                for m in context["chart_payload"].get("milestones", []):
+                    if m["crossMs"] is not None:
+                        _d = _dt.datetime.fromtimestamp(m["crossMs"] / 1000).strftime("%b %Y")
+                    else:
+                        _d = "—"
+                    _ms_display.append({"pct": m["pct"], "amount": f"{m['y']:,.0f}", "date": _d})
+                context["display"]["milestones"] = _ms_display
+
                 # ±5 % savings rate scenarios
                 if values["scenarios"] and result.months_to_fire is not None:
                     delta = inputs.annual_income * 5 / 100 / 12
@@ -449,6 +475,18 @@ def index():
                         pts = context["chart_payload"].get(key)
                         if pts and len(pts) == 2:
                             pts[1]["x"] = new_x_max
+
+                    # Recompute milestone crossings against the extended projection
+                    new_milestones = []
+                    for pct in (25, 50, 75):
+                        value = result.fire_number * pct / 100
+                        cross_ms = None
+                        for p in context["chart_payload"]["projection"]:
+                            if p["y"] >= value:
+                                cross_ms = p["x"]
+                                break
+                        new_milestones.append({"pct": pct, "y": value, "crossMs": cross_ms})
+                    context["chart_payload"]["milestones"] = new_milestones
 
                     scenario_results = []
                     main_fire_number = result.fire_number  # the target line on the chart
