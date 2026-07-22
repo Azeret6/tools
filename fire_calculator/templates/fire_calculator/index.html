@@ -246,40 +246,52 @@ document.querySelectorAll('input[type="range"]').forEach(function(s) {
 
 // ── Mode switching ──────────────────────────────────────────────
 function applyMode(mode) {
-  var monthlySavingsGroup = document.getElementById('monthly_savings').closest('.field-group');
+  var msInput      = document.getElementById('monthly_savings');
   var targetGroup  = document.getElementById('field-target-income');
   var horizonGroup = document.getElementById('field-horizon');
   var agesGroup    = document.getElementById('field-ages');
   var hintTarget   = document.getElementById('hint-target-income');
-  var scenariosGroup = document.getElementById('scenarios').closest('.checkbox-group');
+  var scenariosCb  = document.getElementById('scenarios');
+  var scenariosGroup = scenariosCb ? scenariosCb.closest('.checkbox-group') : null;
 
-  // Enable everything first
-  [targetGroup, horizonGroup, agesGroup, monthlySavingsGroup, scenariosGroup].forEach(function(g){ g.classList.remove('field-disabled'); });
+  // Enable everything first (null-safe throughout)
+  [targetGroup, horizonGroup, agesGroup, scenariosGroup].forEach(function(g){
+    if (g) g.classList.remove('field-disabled');
+  });
   ['desired_monthly_income','savings_target_years','current_age','retirement_age'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.disabled = false;
   });
-  document.getElementById('monthly_savings').readOnly = false;
-  document.getElementById('scenarios').disabled = false;
+  if (msInput) msInput.readOnly = false;
+  if (scenariosCb) scenariosCb.disabled = false;
+
+  function grey(group, inputIds) {
+    if (group) group.classList.add('field-disabled');
+    (inputIds || []).forEach(function(id){
+      var el = document.getElementById(id); if (el) el.disabled = true;
+    });
+  }
 
   if (mode === 'time_to_fire') {
-    hintTarget.textContent = 'Optional — leave empty for full independence, or set a target income for Partial FIRE.';
-    horizonGroup.classList.add('field-disabled'); document.getElementById('savings_target_years').disabled = true;
-    agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
+    if (hintTarget) hintTarget.textContent = 'Optional — leave empty for full independence, or set a target income for Partial FIRE.';
+    grey(horizonGroup, ['savings_target_years']);
+    grey(agesGroup, ['current_age','retirement_age']);
 
   } else if (mode === 'required_savings') {
-    hintTarget.textContent = 'Required — your desired retirement income.';
-    monthlySavingsGroup.classList.add('field-disabled'); document.getElementById('monthly_savings').readOnly = true;
-    agesGroup.classList.add('field-disabled'); document.getElementById('current_age').disabled = true; document.getElementById('retirement_age').disabled = true;
-    scenariosGroup.classList.add('field-disabled'); document.getElementById('scenarios').disabled = true;
+    if (hintTarget) hintTarget.textContent = 'Required — your desired retirement income.';
+    if (msInput) msInput.readOnly = true;   // output, not input, in this mode
+    grey(agesGroup, ['current_age','retirement_age']);
+    grey(scenariosGroup, []);
+    if (scenariosCb) scenariosCb.disabled = true;
 
   } else if (mode === 'coast_fire') {
-    hintTarget.textContent = '';
-    targetGroup.classList.add('field-disabled'); document.getElementById('desired_monthly_income').disabled = true;
-    horizonGroup.classList.add('field-disabled'); document.getElementById('savings_target_years').disabled = true;
+    if (hintTarget) hintTarget.textContent = '';
+    grey(targetGroup, ['desired_monthly_income']);
+    grey(horizonGroup, ['savings_target_years']);
   }
 
   document.querySelectorAll('.mode-option').forEach(function(el){
-    el.classList.toggle('mode-active', el.querySelector('input').value === mode);
+    var input = el.querySelector('input');
+    if (input) el.classList.toggle('mode-active', input.value === mode);
   });
 }
 
@@ -344,6 +356,16 @@ function buildDatasets(payload) {
       pointRadius:0, tension:0, fill:false, order:5 });
   }
 
+  // Milestone lines: 25 / 50 / 75 % of target — very subtle dashed lines
+  if (payload.milestones && payload.xMax) {
+    var msStart = NOW - THREE_MONTHS;
+    payload.milestones.forEach(function(m) {
+      ds.push({ label:'__ms' + m.pct, data:[{x:msStart, y:m.y}, {x:payload.xMax, y:m.y}],
+        borderColor:'rgba(27,43,39,0.13)', borderDash:[2,6], borderWidth:1,
+        pointRadius:0, tension:0, fill:false, order:6 });
+    });
+  }
+
   // Markers
   function mkr(d, color, size) {
     return { label:'__m', data:[d], borderColor:color, backgroundColor:color,
@@ -375,7 +397,7 @@ function chartOptions(payload) {
         labels: {
           boxWidth:12, padding:10,
           font:{ family:'"IBM Plex Mono"', size:11 },
-          filter: function(i){ return i.text !== '__m' && i.text !== 'Projected net worth'; }
+          filter: function(i){ return i.text.indexOf('__m') !== 0 && i.text !== 'Projected net worth'; }
         }
       },
       tooltip: {
@@ -386,10 +408,17 @@ function chartOptions(payload) {
         bodyFont:{ family:'"IBM Plex Mono"', size:11 },
         padding:10,
         callbacks: {
-          title: function(items){ return dateFmt(items[0].parsed.x); },
+          title: function(items){
+            var t = dateFmt(items[0].parsed.x);
+            if (payload.currentAge != null && payload.asOfMs != null) {
+              var yrs = (items[0].parsed.x - payload.asOfMs) / (365.25 * 86400 * 1000);
+              t += ' \u00b7 age ' + Math.floor(payload.currentAge + yrs);
+            }
+            return t;
+          },
           label: function(item){
             var lbl = item.dataset.label;
-            if (lbl === 'FIRE target' || lbl === 'Coast FIRE') return null;
+            if (lbl === 'FIRE target' || lbl === 'Coast FIRE' || lbl.indexOf('__ms') === 0) return null;
             if (lbl === '__m') {
               // Crossing marker — show it in tooltip with its label property
               return item.dataset.data[0] && item.dataset.data[0].label
@@ -473,6 +502,7 @@ function chartOptions(payload) {
 // ── Live update (AJAX, no page reload) ─────────────────────────
 var _liveTimer = null;
 var _liveRunning = false;
+var _preserveZoomOnce = false;
 var _hasResults = {{ 'true' if chart_payload else 'false' }};
 
 function scheduleLiveUpdate(delay) {
@@ -507,10 +537,16 @@ function doLiveUpdate() {
       }
 
       if (window.fireChart) {
-        try { window.fireChart.resetZoom(); } catch(e) {}
+        var keepView = _preserveZoomOnce;
+        _preserveZoomOnce = false;
+        if (!keepView) {
+          try { window.fireChart.resetZoom(); } catch(e) {}
+        }
         window.fireChart.data.datasets = buildDatasets(payload);
-        if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
-        window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
+        if (!keepView) {
+          if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
+          window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
+        }
         window.fireChart.update('none');
       } else {
         // Chart didn't exist yet — build it now
@@ -536,7 +572,11 @@ setTimeout(function() {
     s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
   });
   document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
-    cb.addEventListener('change', function(){ scheduleLiveUpdate(150); });
+    cb.addEventListener('change', function(){
+      // Scenarios toggle only adds/removes curves — keep the current view (b12)
+      if (cb.id === 'scenarios') _preserveZoomOnce = true;
+      scheduleLiveUpdate(150);
+    });
   });
   document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
     n.addEventListener('change', function(){ scheduleLiveUpdate(600); });
