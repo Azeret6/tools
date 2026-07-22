@@ -96,5 +96,19 @@
     </table>
   </div>
   {% endif %}
+
+  {% if display.milestones and display.reachable %}
+  <div class="coast-panel">
+    <p class="result-label">Milestones on the way</p>
+    <div class="ledger-rows">
+      {% for m in display.milestones %}
+      <div class="ledger-row">
+        <span>{{ m.pct }} % ({{ m.amount }})</span>
+        <span class="num">{{ m.date }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
