@@ -167,7 +167,7 @@ def index():
         "savings_target_income": "",
         "savings_target_years": "",
         "scenarios": False,
-        "calc_mode": "time_to_fire",
+        "calc_mode": "full_fire",
     }
     context = {
         "values": values,
@@ -208,16 +208,18 @@ def index():
         values["savings_target_income"] = form.get("savings_target_income", "")
         values["savings_target_years"] = form.get("savings_target_years", "")
         values["scenarios"] = form.get("scenarios") == "on"
-        # New: calc_mode radio replaces the three checkboxes
-        calc_mode = form.get("calc_mode", "time_to_fire")
+        # calc_mode radio: full_fire | target_fire | required_savings | coast_fire
+        calc_mode = form.get("calc_mode", "full_fire")
         values["calc_mode"] = calc_mode
-        # Map to existing flags so the rest of the logic is unchanged
-        values["partial_fire"]   = calc_mode == "time_to_fire" and bool(form.get("desired_monthly_income", "").strip())
+        values["partial_fire"]   = calc_mode == "target_fire"
         values["coast_fire"]     = calc_mode == "coast_fire"
         values["savings_target"] = calc_mode == "required_savings"
         # In required_savings mode, desired_monthly_income doubles as savings_target_income
         if calc_mode == "required_savings":
             values["savings_target_income"] = form.get("desired_monthly_income", "")
+        # In full_fire mode, ignore any (greyed-out, stale) target income value
+        if calc_mode == "full_fire":
+            values["desired_monthly_income"] = ""
 
         history = None
         as_of_date = _dt.date.today()
@@ -243,7 +245,7 @@ def index():
 
         annual_income = _parse_form_float(form, "annual_income")
         monthly_savings = _parse_form_float(form, "monthly_savings")
-        desired_monthly_income = _parse_form_float(form, "desired_monthly_income")
+        desired_monthly_income = None if calc_mode == "full_fire" else _parse_form_float(form, "desired_monthly_income")
         current_age_raw = form.get("current_age", "").strip()
         retirement_age_raw = form.get("retirement_age", "").strip()
         current_age = int(current_age_raw) if current_age_raw.isdigit() else None
@@ -260,8 +262,8 @@ def index():
             desired_monthly_income and desired_monthly_income > 0
         ):
             context["error"] = (
-                "Please enter a desired monthly amount for partial FIRE "
-                "(or untick the checkbox to calculate full FIRE instead)."
+                "Please enter a target monthly income for Target FIRE "
+                "(or switch to Full FIRE to calculate full independence instead)."
             )
 
         if not context["error"] and values["coast_fire"] and (
@@ -397,13 +399,20 @@ def index():
 
                 # Subtitle data for the badge above the chart — needed for live updates
                 # because the badge is outside #results-area and isn't replaced by doLiveUpdate
+                _mode_labels = {
+                    "full_fire": "Full FIRE",
+                    "target_fire": "Target FIRE",
+                    "required_savings": "Required Savings",
+                    "coast_fire": "Coast FIRE",
+                }
+                _mode = _mode_labels.get(calc_mode, "Full FIRE")
+                context["display"]["mode_label"] = _mode
+
                 if result.is_partial and result.desired_monthly_income_today is not None:
-                    _mode = "Partial FIRE"
                     _detail = (f"target {result.desired_monthly_income_today:,.0f}/mo"
                                f" · goal {result.fire_number:,.0f}"
                                + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
                 else:
-                    _mode = "Full FIRE"
                     _detail = (f"goal {result.fire_number:,.0f}"
                                + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
                 context["chart_payload"]["subtitle"] = {"mode": _mode, "detail": _detail}
