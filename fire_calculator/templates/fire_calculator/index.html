@@ -61,36 +61,41 @@
     </div>
   </div>
 
-  <!-- ═══ ZONE 2: Sidebar + Chart ═══ -->
+  <!-- ═══ ZONE 2: Controls + Results + Chart (3 columns) ═══ -->
   <div class="zone-body">
 
-    <!-- Sidebar -->
-    <div class="sidebar">
+    <!-- Column 1: controls -->
+    <div class="controls-col">
       <div class="panel options-panel">
 
-        <!-- Mode selector -->
+        <!-- Mode selector: 4 distinct calculations -->
         <p class="section-label">What do you want to calculate?</p>
         <div class="mode-group">
-          <label class="mode-option {% if values.calc_mode == 'time_to_fire' %}mode-active{% endif %}">
-            <input type="radio" name="calc_mode" value="time_to_fire"
-              {% if values.calc_mode == 'time_to_fire' %}checked{% endif %}>
-            When will I reach FI?
+          <label class="mode-option {% if values.calc_mode == 'full_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="full_fire"
+              {% if values.calc_mode == 'full_fire' %}checked{% endif %}>
+            <span><strong>Full FIRE</strong><br><span class="mode-sub">When can I stop working entirely?</span></span>
+          </label>
+          <label class="mode-option {% if values.calc_mode == 'target_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="target_fire"
+              {% if values.calc_mode == 'target_fire' %}checked{% endif %}>
+            <span><strong>Target FIRE</strong><br><span class="mode-sub">When can I afford a specific income?</span></span>
           </label>
           <label class="mode-option {% if values.calc_mode == 'required_savings' %}mode-active{% endif %}">
             <input type="radio" name="calc_mode" value="required_savings"
               {% if values.calc_mode == 'required_savings' %}checked{% endif %}>
-            How much must I save monthly?
+            <span><strong>Required savings</strong><br><span class="mode-sub">How much must I save monthly?</span></span>
           </label>
           <label class="mode-option {% if values.calc_mode == 'coast_fire' %}mode-active{% endif %}">
             <input type="radio" name="calc_mode" value="coast_fire"
               {% if values.calc_mode == 'coast_fire' %}checked{% endif %}>
-            When can I stop saving?
+            <span><strong>Coast FIRE</strong><br><span class="mode-sub">When can I stop saving (but keep working)?</span></span>
           </label>
         </div>
 
         <hr class="divider">
 
-        <!-- Target monthly income — aktivní v time_to_fire a required_savings -->
+        <!-- Target monthly income — active in target_fire and required_savings -->
         <div class="field-group mode-field" id="field-target-income">
           <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
           <input type="number" step="any" min="0" inputmode="decimal"
@@ -99,15 +104,15 @@
           <p class="hint" id="hint-target-income"></p>
         </div>
 
-        <!-- Horizon — pouze v required_savings -->
+        <!-- Horizon — required_savings only -->
         <div class="field-group mode-field" id="field-horizon">
-          <label for="savings_target_years">Horizon <span class="optional">(let)</span></label>
+          <label for="savings_target_years">Horizon <span class="optional">(years)</span></label>
           <input type="number" step="0.5" min="0.5" inputmode="decimal"
             id="savings_target_years" name="savings_target_years"
             value="{{ values.savings_target_years }}" placeholder="e.g. 20">
         </div>
 
-        <!-- Věky — pouze v coast_fire -->
+        <!-- Ages — coast_fire only -->
         <div class="mode-field two-col" id="field-ages">
           <div>
             <label for="current_age">Current age</label>
@@ -172,23 +177,24 @@
         </div>
 
       </div>{# end options-panel #}
+    </div>{# end controls-col #}
 
-      <!-- Results (replaced on live update) - OUTSIDE options panel -->
+    <!-- Column 2: results (sticky, always visible, no scrolling needed) -->
+    <div class="results-col">
       <div id="results-area">
         {% include 'fire_calculator/_results.html' %}
       </div>
+    </div>
 
-    </div>{# end sidebar #}
-
-    <!-- Chart column -->
+    <!-- Column 3: chart -->
     <div class="chart-col">
       {% if chart_payload %}
       <div class="panel chart-panel">
         {% if display %}
         <p class="chart-subtitle">
-          {% if display.is_partial %}<span class="chart-mode-badge">Partial FIRE</span> target {{ display.monthly_income_today }}/mo · cíl {{ display.fire_number }} · {{ display.fire_date }}
-          {% else %}<span class="chart-mode-badge">Full FIRE</span> cíl {{ display.fire_number }} · {{ display.fire_date }}
-          {% endif %}
+          {% if display.mode_label %}<span class="chart-mode-badge">{{ display.mode_label }}</span> {% endif %}
+          {% if display.is_partial %}target {{ display.monthly_income_today }}/mo · {% endif %}
+          goal {{ display.fire_number }} · {{ display.fire_date }}
         </p>
         {% endif %}
         <div class="chart-wrap">
@@ -271,8 +277,14 @@ function applyMode(mode) {
     });
   }
 
-  if (mode === 'time_to_fire') {
-    if (hintTarget) hintTarget.textContent = 'Optional — leave empty for full independence, or set a target income for Partial FIRE.';
+  if (mode === 'full_fire') {
+    if (hintTarget) hintTarget.textContent = '';
+    grey(targetGroup, ['desired_monthly_income']);
+    grey(horizonGroup, ['savings_target_years']);
+    grey(agesGroup, ['current_age','retirement_age']);
+
+  } else if (mode === 'target_fire') {
+    if (hintTarget) hintTarget.textContent = 'Required — the sustainable monthly income you want.';
     grey(horizonGroup, ['savings_target_years']);
     grey(agesGroup, ['current_age','retirement_age']);
 
