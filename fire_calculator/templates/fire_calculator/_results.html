@@ -6,7 +6,7 @@
 {% elif display %}
 <div class="panel results-panel">
   {% if display.reachable %}
-    <p class="result-label">{% if display.is_partial %}Partial FIRE{% else %}Time to FIRE{% endif %}</p>
+    <p class="result-label">{{ display.mode_label or 'Time to FIRE' }}</p>
     <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
     <p class="result-sub">{{ display.fire_date }}</p>
     {% if display.scenarios %}
