@@ -30,7 +30,7 @@ body {
 /* ---------- Tool nav (shared across all tools, same everywhere) ---------- */
 
 .tool-nav {
-  max-width: 980px;
+  max-width: 88rem;
   margin: 0 auto;
   padding: 0.75rem 24px;
   display: flex;
