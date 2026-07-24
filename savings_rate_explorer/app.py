@@ -90,13 +90,17 @@ def index():
         values["withdrawal_rate_pct"] = _parse_float(form, "withdrawal_rate_pct", values["withdrawal_rate_pct"])
         values["annual_income"] = form.get("annual_income", "")
         values["monthly_savings"] = form.get("monthly_savings", "")
-
-        # "You are here" rate can come directly, or be derived from income + savings
-        your_rate = _parse_float(form, "your_rate_pct")
         annual_income = _parse_float(form, "annual_income")
         monthly_savings = _parse_float(form, "monthly_savings")
-        if your_rate is None and annual_income and annual_income > 0 and monthly_savings is not None:
+
+        # If both income+savings AND a manual rate are present, the concrete
+        # numbers win — a stray value left in the rate field must never
+        # silently override numbers the person just typed.
+        your_rate = None
+        if annual_income and annual_income > 0 and monthly_savings is not None:
             your_rate = min(99.0, max(0.0, monthly_savings * 12 / annual_income * 100))
+        else:
+            your_rate = _parse_float(form, "your_rate_pct")
         values["your_rate_pct"] = your_rate
 
     context = _context(values)
