@@ -250,3 +250,27 @@ input[readonly] { opacity: 0.35; pointer-events: none; }
   height: 2.25rem;
   box-sizing: border-box;
 }
+
+/* ── Stale indicator (values changed, press Calculate) ── */
+.stale-banner {
+  max-width: 88rem;
+  margin: 0 auto 0.75rem;
+  padding: 0.5rem 0.9rem;
+  background: #FBF3E3;
+  border: 1px solid #E8D5A8;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #8A6416;
+}
+.results-col.stale #results-area,
+.chart-panel.stale {
+  opacity: 0.4;
+  filter: grayscale(0.5);
+  transition: opacity 0.15s ease, filter 0.15s ease;
+  pointer-events: none;
+}
+
+/* ── Scenario row: label + time + goal stacked ── */
+.scenario-info { display: flex; flex-direction: column; gap: 0.05rem; }
+.scenario-goal { font-family: var(--font-mono); font-size: 0.66rem; color: var(--mute); }
