@@ -61,6 +61,8 @@
     </div>
   </div>
 
+  <p id="stale-banner" class="stale-banner" hidden>Values changed — press Calculate to refresh results and chart.</p>
+
   <!-- ═══ ZONE 2: Controls + Results + Chart (3 columns) ═══ -->
   <div class="zone-body">
 
@@ -309,10 +311,7 @@ function applyMode(mode) {
 
 var _initMode = document.querySelector('input[name="calc_mode"]:checked');
 if (_initMode) applyMode(_initMode.value);
-
-document.querySelectorAll('input[name="calc_mode"]').forEach(function(r){
-  r.addEventListener('change', function(){ applyMode(r.value); scheduleLiveUpdate(200); });
-});
+// Change listener attached later (delayed, with markStale instead of auto-recalc)
 
 // ── Chart helpers (shared by initial render + live update) ──────
 var NOW = Date.now();
@@ -474,6 +473,8 @@ function chartOptions(payload) {
         grid:{ color:'rgba(220,227,218,0.6)' }, border:{ display:false }
       },
       y: {
+        min: (payload.yMin != null) ? payload.yMin : undefined,
+        max: (payload.yMax != null) ? payload.yMax : undefined,
         ticks: {
           callback: function(v){ return yFmt(v); },
           maxTicksLimit:6,
@@ -533,6 +534,7 @@ function doLiveUpdate() {
   fetch('?json=1', { method:'POST', body:data })
   .then(function(r){ return r.json(); })
   .then(function(resp) {
+    clearStale();
     // Update results panel
     var area = document.getElementById('results-area');
     if (area) area.innerHTML = resp.results_html || '';
@@ -553,12 +555,12 @@ function doLiveUpdate() {
         _preserveZoomOnce = false;
         if (!keepView) {
           try { window.fireChart.resetZoom(); } catch(e) {}
+          window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
+          if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
+          window.fireChart.options.scales.y.min = (payload.yMin != null) ? payload.yMin : undefined;
+          window.fireChart.options.scales.y.max = (payload.yMax != null) ? payload.yMax : undefined;
         }
         window.fireChart.data.datasets = buildDatasets(payload);
-        if (!keepView) {
-          if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
-          window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
-        }
         window.fireChart.update('none');
       } else {
         // Chart didn't exist yet — build it now
@@ -577,22 +579,57 @@ function doLiveUpdate() {
   .finally(function(){ _liveRunning = false; });
 }
 
+// ── Stale indicator: shown when user changes something that requires
+// pressing Calculate (numeric inputs, mode switch) so results/chart
+// don't silently go out of sync with what's displayed.
+function markStale() {
+  var rc = document.querySelector('.results-col');
+  var cc = document.querySelector('.chart-panel');
+  var banner = document.getElementById('stale-banner');
+  if (rc) rc.classList.add('stale');
+  if (cc) cc.classList.add('stale');
+  if (banner) banner.hidden = false;
+}
+function clearStale() {
+  var rc = document.querySelector('.results-col');
+  var cc = document.querySelector('.chart-panel');
+  var banner = document.getElementById('stale-banner');
+  if (rc) rc.classList.remove('stale');
+  if (cc) cc.classList.remove('stale');
+  if (banner) banner.hidden = true;
+}
+
 // Attach live-update listeners — delayed 500ms to avoid firing on page load
 // (browser may fire change/blur events when auto-filling form fields)
 setTimeout(function() {
+  // Sliders: live-update immediately — this is the only input type where
+  // seeing the chart react in real time is genuinely useful (b: only sliders).
   document.querySelectorAll('#fc-form input[type="range"]').forEach(function(s){
     s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
   });
+
+  // Scenario checkbox: live-updates too (just toggles curves, view preserved).
   document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
     cb.addEventListener('change', function(){
-      // Scenarios toggle only adds/removes curves — keep the current view (b12)
       if (cb.id === 'scenarios') _preserveZoomOnce = true;
       scheduleLiveUpdate(150);
     });
   });
+
+  // Numeric inputs: do NOT auto-recalculate (avoids premature validation
+  // errors while the user is still typing). Just mark results as stale —
+  // press Calculate to apply. (b: numeric inputs require explicit Calculate)
   document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
-    n.addEventListener('change', function(){ scheduleLiveUpdate(600); });
-    n.addEventListener('blur',   function(){ scheduleLiveUpdate(600); });
+    n.addEventListener('input', function(){ if (_hasResults) markStale(); });
+  });
+
+  // Mode radio: same — only update field graying locally, mark stale,
+  // wait for explicit Calculate (b: no premature error banner on mode switch)
+  document.querySelectorAll('input[name="calc_mode"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      applyMode(r.value);
+      if (_hasResults) markStale();
+    });
   });
 }, 500);
 
