@@ -66,6 +66,12 @@ TOOLS = [
         "title": "Color Palette Generator",
         "description": "Generate colour palettes with harmony modes, style moods, and contrast checking.",
     },
+    {
+        "folder": "savings_rate_explorer",
+        "prefix": "/savings-rate-explorer",
+        "title": "Savings Rate Explorer",
+        "description": "See how your savings rate alone determines years to financial independence.",
+    },
 ]
 
 
