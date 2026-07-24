@@ -481,7 +481,7 @@ input[type="range"]::-moz-range-thumb {
    Tool nav (shown only when running inside the hub)
    ---------------------------------------------------------------- */
 .tool-nav {
-  max-width: 64rem;
+  max-width: 88rem;
   margin: 0 auto;
   padding-top: 1.25rem;
   display: flex;
