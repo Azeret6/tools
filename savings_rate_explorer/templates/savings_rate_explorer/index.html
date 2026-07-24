@@ -37,7 +37,7 @@
           <input type="number" step="0.1" min="0" max="99" inputmode="decimal"
             id="your_rate_pct" name="your_rate_pct"
             value="{{ values.your_rate_pct if values.your_rate_pct else '' }}" placeholder="e.g. 24">
-          <p class="hint">Or fill in income + savings below and we'll work it out.</p>
+          <p class="hint">Or clear this and fill in income + savings below — they take priority when both are given.</p>
         </div>
 
         <div class="field-group two-col">
@@ -118,6 +118,24 @@ document.querySelectorAll('input[type="range"]').forEach(function(s) {
   var sync = function(){ o.textContent = parseFloat(s.value).toFixed(1) + '%'; };
   s.addEventListener('input', sync); sync();
 });
+
+// Mutually exclusive: typing a manual rate clears income/savings, and vice
+// versa — prevents a stray value in one silently overriding the other.
+(function() {
+  var rateEl = document.getElementById('your_rate_pct');
+  var incomeEl = document.getElementById('annual_income');
+  var savingsEl = document.getElementById('monthly_savings');
+  if (!rateEl || !incomeEl || !savingsEl) return;
+
+  rateEl.addEventListener('input', function() {
+    if (rateEl.value.trim() !== '') { incomeEl.value = ''; savingsEl.value = ''; }
+  });
+  [incomeEl, savingsEl].forEach(function(el) {
+    el.addEventListener('input', function() {
+      if (incomeEl.value.trim() !== '' || savingsEl.value.trim() !== '') rateEl.value = '';
+    });
+  });
+})();
 
 var payload = {{ chart_payload | tojson }};
 
