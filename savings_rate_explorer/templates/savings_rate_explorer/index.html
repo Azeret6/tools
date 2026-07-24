@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Savings Rate Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('savings_rate_explorer.static', filename='style.css') }}">
+</head>
+<body>
+
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<header class="masthead">
+  <p class="eyebrow">Financial Independence</p>
+  <h1>Savings Rate Explorer</h1>
+  <p class="subtitle">See exactly how much your savings rate alone determines how long until financial independence — no income figure needed.</p>
+</header>
+
+<form id="sre-form" method="post">
+  <div class="layout">
+
+    <div class="controls-panel">
+      <div class="panel">
+        <p class="section-label">Where are you now? <span class="optional">(optional)</span></p>
+
+        <div class="field-group">
+          <label for="your_rate_pct">Your savings rate <span class="optional">(%)</span></label>
+          <input type="number" step="0.1" min="0" max="99" inputmode="decimal"
+            id="your_rate_pct" name="your_rate_pct"
+            value="{{ values.your_rate_pct if values.your_rate_pct else '' }}" placeholder="e.g. 24">
+          <p class="hint">Or fill in income + savings below and we'll work it out.</p>
+        </div>
+
+        <div class="field-group two-col">
+          <div>
+            <label for="annual_income">Annual income</label>
+            <input type="number" step="any" min="0" inputmode="decimal"
+              id="annual_income" name="annual_income"
+              value="{{ values.annual_income }}" placeholder="e.g. 500000">
+          </div>
+          <div>
+            <label for="monthly_savings">Monthly savings</label>
+            <input type="number" step="any" min="0" inputmode="decimal"
+              id="monthly_savings" name="monthly_savings"
+              value="{{ values.monthly_savings }}" placeholder="e.g. 10000">
+          </div>
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Assumptions</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="nominal_return_pct">Nominal annual return</label>
+            <output id="nominal_return_out">{{ values.nominal_return_pct }}%</output>
+          </div>
+          <input type="range" id="nominal_return_pct" name="nominal_return_pct" min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}" data-output="nominal_return_out">
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="inflation_pct">Inflation rate</label>
+            <output id="inflation_out">{{ values.inflation_pct }}%</output>
+          </div>
+          <input type="range" id="inflation_pct" name="inflation_pct" min="0" max="15" step="0.1" value="{{ values.inflation_pct }}" data-output="inflation_out">
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}" data-output="withdrawal_out">
+        </div>
+
+        <button type="submit" class="calculate-btn">Update chart</button>
+
+        {% if chart_payload.yourPoint %}
+        <div class="your-panel">
+          <p class="section-label">You are here</p>
+          <p class="your-num">{{ chart_payload.yourPoint.years }}<span class="unit">y</span> {{ chart_payload.yourPoint.monthsPart }}<span class="unit">m</span></p>
+          <p class="hint">At a {{ chart_payload.yourPoint.rate }}% savings rate.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel chart-panel">
+      <canvas id="curveChart"></canvas>
+    </div>
+
+  </div>
+</form>
+
+<section class="explainer">
+  <p><strong>Why income doesn't matter here:</strong> if you save X% of your income, your expenses are automatically the other (100−X)%, and your monthly contribution is X% too — both scale with income equally, so income cancels out of the years-to-FI calculation entirely. A person earning 500,000/year saving 24% reaches FI in exactly the same number of years as someone earning 50,000/year saving 24%. Only the rate matters.</p>
+  <p>This uses the same real-return math (Fisher equation) as the main <a href="{{ hub_tools and (hub_tools | selectattr('folder','equalto','fire_calculator') | first).prefix or '/fire-calculator' }}/">FIRE Calculator</a> — for a projection using your actual income, current net worth, and more scenarios (Coast FIRE, required savings, ±5% comparisons), head over there.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+  Chart.defaults.elements.point.hoverRadius = 0;
+}
+
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(1) + '%'; };
+  s.addEventListener('input', sync); sync();
+});
+
+var payload = {{ chart_payload | tojson }};
+
+function buildChart(payload) {
+  var canvas = document.getElementById('curveChart');
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className: 'hint', style: 'text-align:center;padding:3rem 0',
+      textContent: 'Chart requires internet access (Chart.js).'
+    }));
+    return null;
+  }
+
+  var mainData = payload.points.map(function(p) {
+    return { x: p.rate, y: p.months !== null ? p.months / 12 : null, label: p.label };
+  });
+
+  var datasets = [{
+    label: 'Years to FI',
+    data: mainData,
+    borderColor: '#2F6F52',
+    borderWidth: 3,
+    pointRadius: 0,
+    tension: 0.15,
+    fill: false,
+  }];
+
+  if (payload.yourPoint) {
+    datasets.push({
+      label: 'You',
+      data: [{ x: payload.yourPoint.rate, y: payload.yourPoint.months / 12 }],
+      borderColor: '#B3402F',
+      backgroundColor: '#B3402F',
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      showLine: false,
+    });
+  }
+
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, padding: 10, font: { family: '"IBM Plex Mono"', size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: '#DCE3DA', borderWidth: 1,
+          titleColor: '#1B2B27', bodyColor: '#6E7A73',
+          titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
+          bodyFont: { family: '"IBM Plex Mono"', size: 11 },
+          padding: 10,
+          callbacks: {
+            title: function(items) { return items[0].parsed.x + '% savings rate'; },
+            label: function(item) {
+              var yrs = Math.floor(item.parsed.y);
+              var mos = Math.round((item.parsed.y - yrs) * 12);
+              if (mos === 12) { yrs += 1; mos = 0; }
+              return (item.dataset.label === 'You' ? 'You: ' : '') + yrs + 'y ' + mos + 'm';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Savings rate (%)', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          min: {{ 5 }}, max: {{ 95 }},
+          ticks: { stepSize: 10, font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        },
+        y: {
+          title: { display: true, text: 'Years to FI', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+window.curveChart = buildChart(payload);
+
+// Live update on slider change (debounced AJAX, same pattern as fire_calculator)
+var _timer = null;
+function scheduleUpdate() {
+  clearTimeout(_timer);
+  _timer = setTimeout(doUpdate, 250);
+}
+function doUpdate() {
+  var form = document.getElementById('sre-form');
+  var data = new FormData(form);
+  fetch('?json=1', { method: 'POST', body: data })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      payload = resp;
+      if (window.curveChart) {
+        window.curveChart.data.datasets = buildChart.datasets || null;
+        window.curveChart.destroy();
+      }
+      window.curveChart = buildChart(payload);
+      var yourPanel = document.querySelector('.your-panel');
+      if (resp.yourPoint) {
+        var html = '<p class="section-label">You are here</p>' +
+          '<p class="your-num">' + resp.yourPoint.years + '<span class="unit">y</span> ' + resp.yourPoint.monthsPart + '<span class="unit">m</span></p>' +
+          '<p class="hint">At a ' + resp.yourPoint.rate + '% savings rate.</p>';
+        if (yourPanel) { yourPanel.innerHTML = html; }
+        else {
+          var div = document.createElement('div');
+          div.className = 'your-panel';
+          div.innerHTML = html;
+          document.querySelector('.controls-panel .panel').appendChild(div);
+        }
+      } else if (yourPanel) {
+        yourPanel.remove();
+      }
+    })
+    .catch(function(e) { console.warn('Update failed:', e); });
+}
+
+setTimeout(function() {
+  document.querySelectorAll('#sre-form input[type="range"]').forEach(function(s) {
+    s.addEventListener('input', scheduleUpdate);
+  });
+}, 400);
+</script>
+</body>
+</html>
