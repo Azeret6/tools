@@ -8,7 +8,8 @@ works independently. A `hub/` combines them into one web interface.
 
 | Tool | What it does |
 |---|---|
-| [`fire_calculator`](./fire_calculator) | Financial independence planning — three modes: time to FI, required monthly savings, and Coast FIRE. Interactive chart with scenario comparison. CLI and web. |
+| [`fire_calculator`](./fire_calculator) | Financial independence planning — four modes: Full FIRE, Target FIRE, required monthly savings, and Coast FIRE. Interactive chart with scenario comparison. CLI and web. |
+| [`savings_rate_explorer`](./savings_rate_explorer) | Interactive chart of years-to-FI purely as a function of savings rate — no income needed. Companion to `fire_calculator`. CLI and web. |
 | [`raise_calculator`](./raise_calculator) | Model a pay raise three ways — spend it, hold it as cash, or invest it — with an optional FIRE-target comparison. CLI and web. |
 | [`savings_target_calculator`](./savings_target_calculator) | Given a desired retirement income and a time horizon, work out how much to save each month. CLI and web. |
 | [`color_palette_generator`](./color_palette_generator) | Generate colour palettes with five harmony modes, four style moods, and WCAG contrast checking. Web. |
