@@ -427,8 +427,12 @@ def index():
                     _ms_display.append({"pct": m["pct"], "amount": f"{m['y']:,.0f}", "date": _d})
                 context["display"]["milestones"] = _ms_display
 
-                # ±5 % savings rate scenarios
-                if values["scenarios"] and result.months_to_fire is not None:
+                # ±5 % savings rate scenarios.
+                # IMPORTANT: this sizing block always runs when reachable (not gated
+                # by the checkbox) so the chart's X/Y framing never jumps when the
+                # user toggles the scenario checkbox on/off (b: axis stability fix).
+                # Only the actual scenario curves/markers are attached conditionally.
+                if result.months_to_fire is not None:
                     delta = inputs.annual_income * 5 / 100 / 12
                     scenario_defs = [
                         ("+5 % savings rate", +delta, "#2F6F52"),
@@ -497,6 +501,8 @@ def index():
                         new_milestones.append({"pct": pct, "y": value, "crossMs": cross_ms})
                     context["chart_payload"]["milestones"] = new_milestones
 
+                    # Compute all scenario projections + markers (always — needed
+                    # both for display and for stable Y-axis sizing below)
                     scenario_results = []
                     main_fire_number = result.fire_number  # the target line on the chart
                     for label, color, inp_s, res_s in phase1:
@@ -507,7 +513,7 @@ def index():
 
                         marker_s = None
                         if result.is_partial:
-                            # Partial FIRE: fixed target for all scenarios — find when
+                            # Target FIRE: fixed target for all scenarios — find when
                             # scenario crosses the SAME target line (main_fire_number)
                             for d, v in zip(dates_s, bal_s):
                                 if v >= main_fire_number:
@@ -549,18 +555,39 @@ def index():
                             "fire_number": res_s.fire_number,
                         })
 
-                    context["chart_payload"]["scenarios"] = scenario_results
-                    context["display"]["scenarios"] = [
-                        {
-                            "label": s["label"],
-                            "color": s["color"],
-                            "years": s["years"],
-                            "months_val": s["months_val"],
-                            "fire_date": s["fire_date"],
-                            "reachable": s["reachable"],
-                        }
-                        for s in scenario_results
-                    ]
+                    # Stable Y-axis bounds — computed from the WIDEST possible data
+                    # (main projection + both scenarios + target lines), regardless
+                    # of whether the scenario checkbox is currently on. This is what
+                    # prevents the chart from jumping/rescaling when the checkbox
+                    # is toggled: the framing is always sized as if scenarios were
+                    # visible, so turning them on/off never changes the axes.
+                    y_candidates = [bal_main[-1] if bal_main else 0, result.fire_number]
+                    if result.coast_fire_number:
+                        y_candidates.append(result.coast_fire_number)
+                    for s in scenario_results:
+                        if s["projection"]:
+                            y_candidates.append(s["projection"][-1]["y"])
+                        y_candidates.append(s["fire_number"])
+                    if history:
+                        y_candidates.extend(v for _, v in history)
+                    context["chart_payload"]["yMax"] = max(y_candidates) * 1.08
+                    context["chart_payload"]["yMin"] = 0
+
+                    # Only attach the actual curves/markers if the user opted in
+                    if values["scenarios"]:
+                        context["chart_payload"]["scenarios"] = scenario_results
+                        context["display"]["scenarios"] = [
+                            {
+                                "label": s["label"],
+                                "color": s["color"],
+                                "years": s["years"],
+                                "months_val": s["months_val"],
+                                "fire_date": s["fire_date"],
+                                "reachable": s["reachable"],
+                                "fire_number": f"{s['fire_number']:,.0f}",
+                            }
+                            for s in scenario_results
+                        ]
 
     reference_rows = fc.savings_rate_reference_table(
         values["nominal_return_pct"], values["inflation_pct"], values["withdrawal_rate_pct"]
