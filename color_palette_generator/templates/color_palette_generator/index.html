@@ -11,9 +11,10 @@
 <body>
 
   {% if hub_tools %}
-  <nav class="hub-nav">
-    {% for tool in hub_tools %}
-    <a href="{{ tool.prefix }}/" class="{{ 'active' if hub_active == tool.folder else '' }}">{{ tool.title }}</a>
+  <nav class="tool-nav">
+    <a href="/" class="tool-nav-link">&larr; All tools</a>
+    {% for t in hub_tools %}
+    <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
     {% endfor %}
   </nav>
   {% endif %}
