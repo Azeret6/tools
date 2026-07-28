@@ -243,8 +243,9 @@
 
   <table class="reference-table">
     <thead><tr>{% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}</tr></thead>
-    <tbody><tr>{% for row in reference_table %}<td>{{ row.years_display }}</td>{% endfor %}</tr></tbody>
+    <tbody><tr id="reference-table-row">{% for row in reference_table %}<td data-rate="{{ row.savings_rate_pct }}">{{ row.years_display }}</td>{% endfor %}</tr></tbody>
   </table>
+  <p class="hint" style="margin-top:0.4rem">Updates live as you move the sliders above — no need to press Calculate.</p>
 </section>
 {% endif %}
 
@@ -356,6 +357,11 @@ if (_initMode) applyMode(_initMode.value);
     return Math.log(numerator) / Math.log(1 + monthlyRate);
   }
 
+  function formatYears(months) {
+    // Match the server's "%.1f" style used in the static table (e.g. "32.0")
+    return (months / 12).toFixed(1);
+  }
+
   function refresh() {
     var ratePct = parseFloat(rateSlider.value);
     var nominal = parseFloat(document.getElementById('nominal_return_pct').value);
@@ -373,6 +379,15 @@ if (_initMode) applyMode(_initMode.value);
       if (rem === 12) { years += 1; rem = 0; }
       yearsOut.textContent = years + 'y ' + rem + 'm';
     }
+
+    // Keep the static reference table below in sync too — otherwise it
+    // shows stale numbers from the last Calculate click while this
+    // slider (and the assumption sliders) already moved on.
+    document.querySelectorAll('#reference-table-row td[data-rate]').forEach(function(cell) {
+      var rate = parseFloat(cell.dataset.rate);
+      var m = monthsToFireAtRate(rate, nominal, inflation, withdrawal);
+      cell.textContent = m === null ? 'not reachable' : formatYears(m);
+    });
   }
 
   rateSlider.addEventListener('input', refresh);
