@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historical Backtest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('historical_backtest.static', filename='style.css') }}">
+</head>
+<body>
+
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<header class="masthead">
+  <p class="eyebrow">Financial Independence</p>
+  <h1>Historical Backtest</h1>
+  <p class="subtitle">A constant "8% a year" assumption hides something important: real markets never actually return a steady rate. See how long FIRE would have taken if you'd started saving in every possible year since {{ chart_payload.firstYear }}, using what markets actually did from that point on.</p>
+</header>
+
+<form id="hb-form" method="post">
+  <div class="layout">
+
+    <div class="controls-panel">
+      <div class="panel">
+        <div class="field-group">
+          <label for="savings_rate_pct">Savings rate <span class="optional">(%)</span></label>
+          <input type="number" step="1" min="1" max="95" inputmode="decimal"
+            id="savings_rate_pct" name="savings_rate_pct"
+            value="{{ values.savings_rate_pct }}">
+          <p class="hint">Independent of income — only the rate matters (same trick as Savings Rate Explorer).</p>
+        </div>
+
+        <hr class="divider">
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}" data-output="withdrawal_out">
+          <p class="hint">Recommended: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="horizon_years">Horizon</label>
+            <output id="horizon_out">{{ values.horizon_years }}y</output>
+          </div>
+          <input type="range" id="horizon_years" name="horizon_years" min="10" max="{{ max_horizon }}" step="1" value="{{ values.horizon_years }}" data-output="horizon_out">
+          <p class="hint">A historical starting year only counts as a full test if {{ max_horizon }} years of data exist from that point.</p>
+        </div>
+
+        <button type="submit" class="calculate-btn">Update</button>
+      </div>
+
+      <div class="panel" id="stats-panel">
+        {% include 'historical_backtest/_stats.html' %}
+      </div>
+    </div>
+
+    <div class="panel chart-panel">
+      <canvas id="backtestChart"></canvas>
+      <div class="chart-legend">
+        <span><span class="legend-dot" style="background:#2F6F52"></span> Reached FIRE within horizon</span>
+        <span><span class="legend-dot" style="background:#B3402F"></span> Did not reach it</span>
+        <span><span class="legend-dot" style="background:#DCE3DA"></span> Not enough data yet to test fully</span>
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<section class="explainer" style="max-width:88rem;margin:1.25rem auto 0;">
+  <p style="color:var(--mute);font-size:0.85rem;line-height:1.6;">Uses approximate historical annual US stock market returns and CPI inflation, {{ chart_payload.firstYear }}–{{ chart_payload.lastYear }} — broadly consistent with widely-published datasets, reconstructed for illustration rather than pulled from a live verified feed. Treat individual-year figures as approximate; the spread of outcomes is the point, not any single decimal. Compare against the constant-return assumption in the main <a href="{{ hub_tools and (hub_tools | selectattr('folder','equalto','fire_calculator') | first).prefix or '/fire-calculator' }}/">FIRE Calculator</a>.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+}
+
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(s.step < 1 ? 1 : 0) + (s.id === 'horizon_years' ? 'y' : '%'); };
+  s.addEventListener('input', sync); sync();
+});
+
+var payload = {{ chart_payload | tojson }};
+var horizonYears = {{ values.horizon_years }};
+
+function statusColor(status) {
+  if (status === 'reached') return '#2F6F52';
+  if (status === 'not_reached') return '#B3402F';
+  return '#DCE3DA';
+}
+
+function buildChart(payload) {
+  var canvas = document.getElementById('backtestChart');
+  if (!canvas) return null;  // already replaced by the fallback message below
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className: 'hint', style: 'text-align:center;padding:3rem 0',
+      textContent: 'Chart requires internet access (Chart.js).'
+    }));
+    return null;
+  }
+
+  var labels = payload.points.map(function(p) { return p.year; });
+  var data = payload.points.map(function(p) {
+    if (p.status === 'reached') return p.years;
+    if (p.status === 'not_reached') return horizonYears;
+    return 0;
+  });
+  var colors = payload.points.map(function(p) { return statusColor(p.status); });
+
+  return new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{ data: data, backgroundColor: colors, barPercentage: 1.0, categoryPercentage: 0.95 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: '#DCE3DA', borderWidth: 1,
+          titleColor: '#1B2B27', bodyColor: '#6E7A73',
+          titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
+          bodyFont: { family: '"IBM Plex Mono"', size: 11 },
+          padding: 10,
+          callbacks: {
+            title: function(items) { return 'Starting ' + payload.points[items[0].dataIndex].year; },
+            label: function(item) {
+              var p = payload.points[item.dataIndex];
+              if (p.status === 'reached') return p.years + ' years to FIRE';
+              if (p.status === 'not_reached') return 'Not reached within ' + horizonYears + ' years';
+              return 'Not enough historical data yet to test the full horizon';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Starting year', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: { maxTicksLimit: 14, font: { family: '"IBM Plex Mono"', size: 9 }, color: '#6E7A73' },
+          grid: { display: false }, border: { display: false }
+        },
+        y: {
+          title: { display: true, text: 'Years to FIRE', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+window.backtestChart = buildChart(payload);
+
+var _timer = null;
+function scheduleUpdate() { clearTimeout(_timer); _timer = setTimeout(doUpdate, 300); }
+function doUpdate() {
+  horizonYears = parseFloat(document.getElementById('horizon_years').value);
+  var form = document.getElementById('hb-form');
+  var data = new FormData(form);
+  fetch('?json=1', { method: 'POST', body: data })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      payload = resp;
+      if (window.backtestChart) window.backtestChart.destroy();
+      window.backtestChart = buildChart(payload);
+      var statsPanel = document.getElementById('stats-panel');
+      if (statsPanel) {
+        var s = resp.stats;
+        statsPanel.innerHTML =
+          '<p class="section-label">Across ' + s.totalWindows + ' historical starting points</p>' +
+          '<div class="stats-grid">' +
+            '<div class="stat-box"><p class="stat-label">Success rate</p><p class="stat-value">' + s.successRatePct + '%</p></div>' +
+            '<div class="stat-box"><p class="stat-label">Best case</p><p class="stat-value">' + (s.bestYears != null ? s.bestYears + 'y' : '—') + '</p></div>' +
+            '<div class="stat-box"><p class="stat-label">Median case</p><p class="stat-value">' + (s.medianYears != null ? s.medianYears + 'y' : '—') + '</p></div>' +
+            '<div class="stat-box"><p class="stat-label">Worst case</p><p class="stat-value brick">' + (s.worstYears != null ? s.worstYears + 'y' : '—') + '</p></div>' +
+          '</div>';
+      }
+    })
+    .catch(function(e) { console.warn('Update failed:', e); });
+}
+
+setTimeout(function() {
+  document.querySelectorAll('#hb-form input[type="range"]').forEach(function(s) {
+    s.addEventListener('input', scheduleUpdate);
+  });
+  document.getElementById('savings_rate_pct').addEventListener('input', scheduleUpdate);
+}, 400);
+</script>
+</body>
+</html>
