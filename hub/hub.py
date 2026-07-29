@@ -72,6 +72,12 @@ TOOLS = [
         "title": "Savings Rate Explorer",
         "description": "See how your savings rate alone determines years to financial independence.",
     },
+    {
+        "folder": "historical_backtest",
+        "prefix": "/historical-backtest",
+        "title": "Historical Backtest",
+        "description": "How long would FIRE have taken starting from every historical year, using real sequences of returns instead of one constant assumption.",
+    },
 ]
 
 
