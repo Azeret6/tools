@@ -1,0 +1,19 @@
+<p class="section-label">Across {{ chart_payload.stats.totalWindows }} historical starting points</p>
+<div class="stats-grid">
+  <div class="stat-box">
+    <p class="stat-label">Success rate</p>
+    <p class="stat-value">{{ chart_payload.stats.successRatePct }}%</p>
+  </div>
+  <div class="stat-box">
+    <p class="stat-label">Best case</p>
+    <p class="stat-value">{{ chart_payload.stats.bestYears ~ 'y' if chart_payload.stats.bestYears is not none else '—' }}</p>
+  </div>
+  <div class="stat-box">
+    <p class="stat-label">Median case</p>
+    <p class="stat-value">{{ chart_payload.stats.medianYears ~ 'y' if chart_payload.stats.medianYears is not none else '—' }}</p>
+  </div>
+  <div class="stat-box">
+    <p class="stat-label">Worst case</p>
+    <p class="stat-value brick">{{ chart_payload.stats.worstYears ~ 'y' if chart_payload.stats.worstYears is not none else '—' }}</p>
+  </div>
+</div>
