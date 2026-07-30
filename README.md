@@ -10,9 +10,11 @@ works independently. A `hub/` combines them into one web interface.
 |---|---|
 | [`fire_calculator`](./fire_calculator) | Financial independence planning — four modes: Full FIRE, Target FIRE, required monthly savings, and Coast FIRE. Interactive chart with scenario comparison. CLI and web. |
 | [`savings_rate_explorer`](./savings_rate_explorer) | Interactive chart of years-to-FI purely as a function of savings rate — no income needed. Companion to `fire_calculator`. CLI and web. |
+| [`historical_backtest`](./historical_backtest) | How long FIRE would have taken starting from every historical year, using real sequences of returns instead of one constant assumption. CLI and web. |
 | [`raise_calculator`](./raise_calculator) | Model a pay raise three ways — spend it, hold it as cash, or invest it — with an optional FIRE-target comparison. CLI and web. |
 | [`savings_target_calculator`](./savings_target_calculator) | Given a desired retirement income and a time horizon, work out how much to save each month. CLI and web. |
 | [`color_palette_generator`](./color_palette_generator) | Generate colour palettes with five harmony modes, four style moods, and WCAG contrast checking. Web. |
+| [`meeting_cost_calculator`](./meeting_cost_calculator) | What a meeting actually costs, and why bigger meetings run disproportionately longer, not just cost more per minute. CLI and web. |
 
 ## Running all tools from one page
 
