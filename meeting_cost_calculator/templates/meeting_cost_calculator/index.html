@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Cost Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('meeting_cost_calculator.static', filename='style.css') }}">
+</head>
+<body>
+
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<header class="masthead">
+  <p class="eyebrow">Time &amp; Money</p>
+  <h1>Meeting Cost Calculator</h1>
+  <p class="subtitle">Headcount &times; pay &times; duration is the easy part. The part everyone ignores: bigger meetings aren't just more expensive per minute — they also tend to run longer, because more people means more turns, more tangents, more re-explaining.</p>
+</header>
+
+<form id="mcc-form" method="post">
+  <div class="layout">
+
+    <div class="controls-panel">
+      <div class="panel">
+        <div class="field-group">
+          <label for="attendees">Attendees</label>
+          <input type="number" step="1" min="1" max="60" inputmode="numeric"
+            id="attendees" name="attendees" value="{{ values.attendees }}">
+        </div>
+
+        <div class="field-group">
+          <label for="avg_annual_salary">Average annual salary <span class="optional">(fully loaded)</span></label>
+          <input type="number" step="1000" min="0" inputmode="decimal"
+            id="avg_annual_salary" name="avg_annual_salary" value="{{ values.avg_annual_salary }}">
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="benefits_multiplier">Benefits &amp; overhead load</label>
+            <output id="benefits_out">{{ values.benefits_multiplier }}x</output>
+          </div>
+          <input type="range" id="benefits_multiplier" name="benefits_multiplier" min="1" max="1.6" step="0.05" value="{{ values.benefits_multiplier }}" data-output="benefits_out">
+          <p class="hint">"Fully loaded" cost incl. benefits &amp; payroll tax — common finance rule of thumb: 1.25–1.4&times; base salary.</p>
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Meeting structure</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="core_minutes">Fixed agenda time</label>
+            <output id="core_out">{{ values.core_minutes }}m</output>
+          </div>
+          <input type="range" id="core_minutes" name="core_minutes" min="0" max="60" step="1" value="{{ values.core_minutes }}" data-output="core_out">
+          <p class="hint">Presentations, decisions, updates — independent of headcount.</p>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="round_robin">
+            <input type="checkbox" id="round_robin" name="round_robin" {% if values.round_robin %}checked{% endif %}>
+            <strong>Everyone gets a turn to speak</strong>
+          </label>
+          <p class="hint">Adds discussion time that scales with the group — this is where bigger meetings get disproportionately long.</p>
+        </div>
+
+        <div class="round-robin-fields" id="round_robin_fields">
+          <div class="slider-group">
+            <div class="slider-label">
+              <label for="turn_minutes">Avg. speaking time per person</label>
+              <output id="turn_out">{{ values.turn_minutes }}m</output>
+            </div>
+            <input type="range" id="turn_minutes" name="turn_minutes" min="0.5" max="8" step="0.5" value="{{ values.turn_minutes }}" data-output="turn_out">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <label for="overhead_growth_pct">Overhead growth per extra person</label>
+              <output id="overhead_out">{{ values.overhead_growth_pct }}%</output>
+            </div>
+            <input type="range" id="overhead_growth_pct" name="overhead_growth_pct" min="0" max="15" step="0.5" value="{{ values.overhead_growth_pct }}" data-output="overhead_out">
+            <p class="hint">How much longer each person's average turn gets as the group grows — interruptions, tangents, re-explaining. Based on Brooks's Law (communication channels grow with group size) and Bain &amp; Company's finding that decision quality drops ~10% per person past 7. This is an adjustable estimate, not a measured constant.</p>
+          </div>
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Recurrence</p>
+        <div class="field-group">
+          <label for="recurrence">How often does this meeting happen?</label>
+          <select id="recurrence" name="recurrence" class="recurrence-select">
+            {% for value, label in recurrence_options %}
+            <option value="{{ value }}" {% if values.recurrence == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" class="calculate-btn">Update</button>
+      </div>
+
+      <div class="panel" id="results-panel">
+        {% include 'meeting_cost_calculator/_results.html' %}
+      </div>
+    </div>
+
+    <div class="panel chart-panel">
+      <canvas id="costChart"></canvas>
+      <p class="hint" style="margin-top:0.6rem">The red marker shows your current headcount. The curve shows how cost scales as you add more people — steeper than a straight line, because bigger groups don't just cost more per minute, they also run longer.</p>
+    </div>
+
+  </div>
+</form>
+
+<section class="explainer" style="max-width:88rem;margin:1.25rem auto 0;">
+  <p style="color:var(--mute);font-size:0.85rem;line-height:1.6;">The base cost formula (headcount &times; hourly pay &times; duration) is the same one used by most published meeting-cost calculators. The "duration grows with headcount" model is this tool's own addition, motivated by two well-known findings: Fred Brooks's observation that communication channels between people grow much faster than the group itself ("The Mythical Man-Month", 1975), and Bain &amp; Company's widely-cited research that decision-making effectiveness drops roughly 10% for each person added past about seven — part of why Amazon caps team meetings with its "two-pizza rule". The exact growth rate here is an adjustable estimate you control, not a precise measurement.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+}
+
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  if (!o) return;
+  var suffix = s.id === 'overhead_growth_pct' ? '%' : (s.id === 'benefits_multiplier' ? 'x' : 'm');
+  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(s.step < 1 ? 2 : (s.id === 'benefits_multiplier' ? 2 : (s.step < 1 ? 1 : (Number.isInteger(parseFloat(s.step)) ? 0 : 1)))) + suffix; };
+  // Simpler: just show the raw value with correct suffix, matching step precision
+  sync = function(){
+    var val = parseFloat(s.value);
+    var decimals = (s.step && s.step.toString().includes('.')) ? s.step.toString().split('.')[1].length : 0;
+    o.textContent = val.toFixed(decimals) + suffix;
+  };
+  s.addEventListener('input', sync); sync();
+});
+
+function toggleRoundRobin() {
+  var cb = document.getElementById('round_robin');
+  var fields = document.getElementById('round_robin_fields');
+  if (fields) fields.style.opacity = cb.checked ? '1' : '0.35';
+  if (fields) fields.style.pointerEvents = cb.checked ? 'auto' : 'none';
+}
+document.getElementById('round_robin').addEventListener('change', function() {
+  toggleRoundRobin();
+  scheduleUpdate();
+});
+toggleRoundRobin();
+
+var payload = {{ chart_payload | tojson }};
+
+function buildChart(payload) {
+  var canvas = document.getElementById('costChart');
+  if (!canvas) return null;
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className: 'hint', style: 'text-align:center;padding:3rem 0',
+      textContent: 'Chart requires internet access (Chart.js).'
+    }));
+    return null;
+  }
+
+  var curveData = payload.curve.map(function(p) { return { x: p.attendees, y: p.cost }; });
+  var markerPoint = payload.curve.find(function(p) { return p.attendees === payload.attendees; });
+
+  var datasets = [
+    {
+      label: 'Meeting cost',
+      data: curveData,
+      borderColor: '#2F6F52',
+      borderWidth: 3,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false,
+    }
+  ];
+  if (markerPoint) {
+    datasets.push({
+      label: 'You',
+      data: [{ x: markerPoint.attendees, y: markerPoint.cost }],
+      borderColor: '#B3402F',
+      backgroundColor: '#B3402F',
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      showLine: false,
+    });
+  }
+
+  var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, padding: 10, font: { family: '"IBM Plex Mono"', size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: '#DCE3DA', borderWidth: 1,
+          titleColor: '#1B2B27', bodyColor: '#6E7A73',
+          titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
+          bodyFont: { family: '"IBM Plex Mono"', size: 11 },
+          padding: 10,
+          callbacks: {
+            title: function(items) { return items[0].parsed.x + ' attendees'; },
+            label: function(item) { return moneyFmt.format(item.parsed.y); }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Attendees', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        },
+        y: {
+          title: { display: true, text: 'Cost', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: {
+            callback: function(v) { return v >= 1000 ? (v/1000) + 'k' : v; },
+            font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73'
+          },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+window.costChart = buildChart(payload);
+
+var _timer = null;
+function scheduleUpdate() { clearTimeout(_timer); _timer = setTimeout(doUpdate, 300); }
+function doUpdate() {
+  var form = document.getElementById('mcc-form');
+  var data = new FormData(form);
+  fetch('?json=1', { method: 'POST', body: data })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      payload = resp;
+      if (window.costChart) { window.costChart.destroy(); window.costChart = null; }
+      window.costChart = buildChart(payload);
+
+      var panel = document.getElementById('results-panel');
+      if (panel) {
+        var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+        var html = '<div class="result-hero">' +
+          '<p class="result-label">This meeting costs</p>' +
+          '<p class="big-number">' + moneyFmt.format(resp.totalCost) + '</p>' +
+          '<p class="hint">' + resp.totalMinutesDisplay + ' &middot; ' + resp.attendees + ' people &middot; ' + moneyFmt.format(resp.hourlyCostPerPerson) + '/hr each</p>' +
+          '</div>';
+        if (resp.hiddenCost > 1) {
+          html += '<div class="hidden-cost-callout">Group-size overhead adds <strong>' + moneyFmt.format(resp.hiddenCost) + '</strong> to this meeting vs. if duration only scaled with headcount, not group friction.</div>';
+        }
+        html += '<div class="ledger-rows">' +
+          '<div class="ledger-row"><span>Core (fixed) time</span><span class="num">' + resp.coreMinutes + 'm</span></div>' +
+          '<div class="ledger-row"><span>Discussion time</span><span class="num">' + resp.discussionMinutes + 'm</span></div>' +
+          '<div class="ledger-row"><span>Overhead factor</span><span class="num">' + resp.overheadFactor + 'x</span></div>' +
+          '<div class="ledger-row"><span>Core cost</span><span class="num">' + moneyFmt.format(resp.coreCost) + '</span></div>' +
+          '<div class="ledger-row"><span>Discussion cost</span><span class="num">' + moneyFmt.format(resp.discussionCost) + '</span></div>';
+        if (resp.annualCost != null) {
+          html += '<div class="ledger-row"><span>Annualized (' + resp.occurrencesPerYear + 'x/yr)</span><span class="num" style="color:var(--brick)">' + moneyFmt.format(resp.annualCost) + '</span></div>';
+        }
+        html += '</div>';
+        panel.innerHTML = html;
+      }
+    })
+    .catch(function(e) { console.warn('Update failed:', e); });
+}
+
+setTimeout(function() {
+  document.querySelectorAll('#mcc-form input[type="range"]').forEach(function(s) {
+    s.addEventListener('input', scheduleUpdate);
+  });
+  document.getElementById('attendees').addEventListener('input', scheduleUpdate);
+  document.getElementById('avg_annual_salary').addEventListener('input', scheduleUpdate);
+  document.getElementById('recurrence').addEventListener('change', scheduleUpdate);
+}, 400);
+</script>
+</body>
+</html>
