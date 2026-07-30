@@ -41,7 +41,7 @@ body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--fo
 .results-col { position:sticky; top:1rem; }
 .chart-col { position:sticky; top:1rem; }
 .chart-panel { padding:1rem; }
-.chart-panel canvas { display:block; width:100%!important; height:520px; }
+.chart-panel canvas { display:block; }
 .chart-empty { display:flex; align-items:center; justify-content:center; min-height:380px; color:var(--mute); font-size:0.88rem; text-align:center; padding:2rem; }
 .panel.reference { max-width:88rem; margin:0 auto; }
 
@@ -163,6 +163,8 @@ input[type="range"]::-moz-range-thumb { width:13px; height:13px; border-radius:5
 .chart-wrap {
   position: relative;
   cursor: crosshair;
+  width: 100%;
+  height: 480px;
 }
 #zoom-sel {
   display: none;
