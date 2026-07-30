@@ -78,6 +78,12 @@ TOOLS = [
         "title": "Historical Backtest",
         "description": "How long would FIRE have taken starting from every historical year, using real sequences of returns instead of one constant assumption.",
     },
+    {
+        "folder": "meeting_cost_calculator",
+        "prefix": "/meeting-cost",
+        "title": "Meeting Cost Calculator",
+        "description": "What a meeting actually costs — and why bigger meetings run disproportionately longer, not just cost more per minute.",
+    },
 ]
 
 
