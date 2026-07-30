@@ -1,0 +1,22 @@
+<div class="result-hero">
+  <p class="result-label">This meeting costs</p>
+  <p class="big-number">{{ "{:,.0f}".format(chart_payload.totalCost) }}</p>
+  <p class="hint">{{ chart_payload.totalMinutesDisplay }} &middot; {{ chart_payload.attendees }} people &middot; {{ "{:,.0f}".format(chart_payload.hourlyCostPerPerson) }}/hr each</p>
+</div>
+
+{% if chart_payload.hiddenCost > 1 %}
+<div class="hidden-cost-callout">
+  Group-size overhead adds <strong>{{ "{:,.0f}".format(chart_payload.hiddenCost) }}</strong> to this meeting vs. if duration only scaled with headcount, not group friction.
+</div>
+{% endif %}
+
+<div class="ledger-rows">
+  <div class="ledger-row"><span>Core (fixed) time</span><span class="num">{{ chart_payload.coreMinutes }}m</span></div>
+  <div class="ledger-row"><span>Discussion time</span><span class="num">{{ chart_payload.discussionMinutes }}m</span></div>
+  <div class="ledger-row"><span>Overhead factor</span><span class="num">{{ chart_payload.overheadFactor }}x</span></div>
+  <div class="ledger-row"><span>Core cost</span><span class="num">{{ "{:,.0f}".format(chart_payload.coreCost) }}</span></div>
+  <div class="ledger-row"><span>Discussion cost</span><span class="num">{{ "{:,.0f}".format(chart_payload.discussionCost) }}</span></div>
+  {% if chart_payload.annualCost is not none %}
+  <div class="ledger-row"><span>Annualized ({{ chart_payload.occurrencesPerYear }}x/yr)</span><span class="num" style="color:var(--brick)">{{ "{:,.0f}".format(chart_payload.annualCost) }}</span></div>
+  {% endif %}
+</div>
