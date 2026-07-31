@@ -134,6 +134,10 @@ class YearOutcome:
                                       # (either ran out of years, or ran out of data)
     ran_out_of_data: bool            # True if the *data* ended before the horizon did
                                       # (distinct from genuinely not reaching the target)
+    progress_pct: float = 100.0      # % of target reached by the end of the simulation --
+                                      # always 100+ when months_to_fire is set; tells you,
+                                      # for the years that DIDN'T reach it, how close they
+                                      # got (92% is "barely missed", 30% is "not close").
     balance_path: list[float] = field(default_factory=list)  # year-end balances, for the chart
 
 
@@ -167,7 +171,7 @@ def _simulate_from_year(
     ran_out_of_data = False
 
     if balance >= target:
-        return YearOutcome(start_year, 0.0, False, [balance])
+        return YearOutcome(start_year, 0.0, False, 100.0, [balance])
 
     month = 0
     year = start_year
@@ -189,7 +193,12 @@ def _simulate_from_year(
         if months_to_fire is not None:
             break
 
-    return YearOutcome(start_year, months_to_fire, ran_out_of_data, balance_path)
+    if months_to_fire is not None:
+        progress_pct = 100.0
+    else:
+        progress_pct = min(balance / target * 100, 99.9) if target > 0 else 0.0
+
+    return YearOutcome(start_year, months_to_fire, ran_out_of_data, progress_pct, balance_path)
 
 
 def run_backtest(inputs: BacktestInputs) -> BacktestResult:
@@ -305,6 +314,10 @@ def _run_cli() -> None:
         print(f"  Median case: {stats['median_years']:.1f} years")
         print(f"  Worst case:  {stats['worst_years']:.1f} years")
     print(f"Did not reach it within {inputs.horizon_years}y: {result.unreachable_count}")
+    unreached = [o for o in result.outcomes if o.months_to_fire is None and not o.ran_out_of_data]
+    if unreached:
+        closest = max(unreached, key=lambda o: o.progress_pct)
+        print(f"  Closest miss: {closest.start_year} reached {closest.progress_pct:.0f}% of target")
     print(f"Insufficient data to test fully: {result.insufficient_data_count}")
 
     try:
