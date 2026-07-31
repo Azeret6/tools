@@ -151,8 +151,8 @@ function buildChart(payload) {
             label: function(item) {
               var p = payload.points[item.dataIndex];
               if (p.status === 'reached') return p.years + ' years to FIRE';
-              if (p.status === 'not_reached') return 'Not reached within ' + horizonYears + ' years';
-              return 'Not enough historical data yet to test the full horizon';
+              if (p.status === 'not_reached') return 'Reached ' + p.progressPct + '% of target — not there within ' + horizonYears + ' years';
+              return 'Reached ' + p.progressPct + '% of target — not enough historical data yet to test the full horizon';
             }
           }
         }
