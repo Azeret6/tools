@@ -43,8 +43,15 @@ def _build_payload(inputs: mcc.MeetingInputs) -> dict:
         h, mm = divmod(round(m), 60)
         return f"{h}h {mm}m" if h else f"{mm}m"
 
-    curve = [{"attendees": p.attendees, "minutes": round(p.minutes, 1), "cost": round(p.cost, 2)}
-             for p in result.curve]
+    curve = [
+        {
+            "attendees": p.attendees,
+            "minutes": round(p.minutes, 1),
+            "minutesDisplay": fmt_minutes(p.minutes),
+            "cost": round(p.cost, 2),
+        }
+        for p in result.curve
+    ]
 
     return {
         "hourlyCostPerPerson": round(result.hourly_cost_per_person, 2),
@@ -62,6 +69,7 @@ def _build_payload(inputs: mcc.MeetingInputs) -> dict:
         "annualCost": round(result.annual_cost, 2) if result.annual_cost is not None else None,
         "curve": curve,
         "attendees": inputs.attendees,
+        "curveMax": inputs.curve_max_attendees,
     }
 
 
@@ -76,6 +84,8 @@ def index():
         "overhead_growth_pct": mcc.DEFAULT_OVERHEAD_GROWTH_PCT,
         "benefits_multiplier": mcc.DEFAULT_BENEFITS_MULTIPLIER,
         "recurrence": "none",
+        "extend_range": False,
+        "curve_max_attendees": mcc.DEFAULT_CURVE_MAX_ATTENDEES,
     }
 
     if request.method == "POST":
@@ -88,6 +98,16 @@ def index():
         values["overhead_growth_pct"] = _parse_float(form, "overhead_growth_pct", values["overhead_growth_pct"])
         values["benefits_multiplier"] = _parse_float(form, "benefits_multiplier", values["benefits_multiplier"])
         values["recurrence"] = form.get("recurrence", "none")
+        values["extend_range"] = form.get("extend_range") == "on"
+        if values["extend_range"]:
+            custom_max = _parse_float(form, "curve_max_attendees", mcc.DEFAULT_CURVE_MAX_ATTENDEES)
+            values["curve_max_attendees"] = int(max(1, min(custom_max, mcc.MAX_CURVE_ATTENDEES_CAP)))
+        else:
+            values["curve_max_attendees"] = mcc.DEFAULT_CURVE_MAX_ATTENDEES
+
+    # Always extend the curve at least as far as the current headcount,
+    # so "You" is never off the edge of the chart.
+    effective_curve_max = max(values["curve_max_attendees"], values["attendees"])
 
     inputs = mcc.MeetingInputs(
         attendees=values["attendees"],
@@ -98,6 +118,7 @@ def index():
         overhead_growth_pct=values["overhead_growth_pct"],
         benefits_multiplier=values["benefits_multiplier"],
         recurrence=values["recurrence"],
+        curve_max_attendees=effective_curve_max,
     )
     chart_payload = _build_payload(inputs)
 
@@ -108,6 +129,8 @@ def index():
             ("none", "One-off"), ("daily", "Daily"), ("weekly", "Weekly"),
             ("biweekly", "Every 2 weeks"), ("monthly", "Monthly"),
         ],
+        "default_curve_max": mcc.DEFAULT_CURVE_MAX_ATTENDEES,
+        "max_curve_cap": mcc.MAX_CURVE_ATTENDEES_CAP,
         "hub_tools": current_app.config.get("HUB_TOOLS"),
         "hub_active": "meeting_cost_calculator",
     }
