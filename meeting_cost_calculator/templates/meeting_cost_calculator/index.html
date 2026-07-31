@@ -77,7 +77,7 @@
               <label for="turn_minutes">Avg. speaking time per person</label>
               <output id="turn_out">{{ values.turn_minutes }}m</output>
             </div>
-            <input type="range" id="turn_minutes" name="turn_minutes" min="0.5" max="8" step="0.5" value="{{ values.turn_minutes }}" data-output="turn_out">
+            <input type="range" id="turn_minutes" name="turn_minutes" min="0.5" max="30" step="0.5" value="{{ values.turn_minutes }}" data-output="turn_out">
           </div>
 
           <div class="slider-group">
@@ -88,6 +88,21 @@
             <input type="range" id="overhead_growth_pct" name="overhead_growth_pct" min="0" max="15" step="0.5" value="{{ values.overhead_growth_pct }}" data-output="overhead_out">
             <p class="hint">How much longer each person's average turn gets as the group grows — interruptions, tangents, re-explaining. Based on Brooks's Law (communication channels grow with group size) and Bain &amp; Company's finding that decision quality drops ~10% per person past 7. This is an adjustable estimate, not a measured constant.</p>
           </div>
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Chart range</p>
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="extend_range">
+            <input type="checkbox" id="extend_range" name="extend_range" {% if values.extend_range %}checked{% endif %}>
+            <strong>Show a wider range</strong>
+          </label>
+          <p class="hint">Default shows up to {{ default_curve_max }} attendees. Tick this to set your own maximum.</p>
+        </div>
+        <div class="field-group" id="curve_max_field" {% if not values.extend_range %}hidden{% endif %}>
+          <label for="curve_max_attendees">Show curve up to <span class="optional">(attendees)</span></label>
+          <input type="number" step="1" min="2" max="{{ max_curve_cap }}" inputmode="numeric"
+            id="curve_max_attendees" name="curve_max_attendees" value="{{ values.curve_max_attendees }}">
         </div>
 
         <hr class="divider">
@@ -155,6 +170,13 @@ document.getElementById('round_robin').addEventListener('change', function() {
 });
 toggleRoundRobin();
 
+document.getElementById('extend_range').addEventListener('change', function(e) {
+  var field = document.getElementById('curve_max_field');
+  if (field) field.hidden = !e.target.checked;
+  scheduleUpdate();
+});
+document.getElementById('curve_max_attendees').addEventListener('input', scheduleUpdate);
+
 var payload = {{ chart_payload | tojson }};
 
 function buildChart(payload) {
@@ -170,6 +192,7 @@ function buildChart(payload) {
 
   var curveData = payload.curve.map(function(p) { return { x: p.attendees, y: p.cost }; });
   var markerPoint = payload.curve.find(function(p) { return p.attendees === payload.attendees; });
+  var curveMax = payload.curveMax || payload.curve[payload.curve.length - 1].attendees;
 
   var datasets = [
     {
@@ -183,6 +206,19 @@ function buildChart(payload) {
     }
   ];
   if (markerPoint) {
+    // Horizontal reference line at "your" cost, spanning the whole chart —
+    // this is what lets you compare "cost at N people" vs. "your meeting's
+    // cost" no matter which point on the curve you're hovering over.
+    datasets.push({
+      label: 'Your meeting (' + payload.attendees + ' people)',
+      data: [{ x: 1, y: markerPoint.cost }, { x: curveMax, y: markerPoint.cost }],
+      borderColor: 'rgba(179,64,47,0.55)',
+      borderDash: [6, 4],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+    });
     datasets.push({
       label: 'You',
       data: [{ x: markerPoint.attendees, y: markerPoint.cost }],
@@ -207,7 +243,10 @@ function buildChart(payload) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { boxWidth: 12, padding: 10, font: { family: '"IBM Plex Mono"', size: 11 } }
+          labels: {
+            boxWidth: 12, padding: 10, font: { family: '"IBM Plex Mono"', size: 11 },
+            filter: function(item) { return item.text !== 'You'; }
+          }
         },
         tooltip: {
           backgroundColor: 'rgba(255,255,255,0.97)',
@@ -218,7 +257,17 @@ function buildChart(payload) {
           padding: 10,
           callbacks: {
             title: function(items) { return items[0].parsed.x + ' attendees'; },
-            label: function(item) { return moneyFmt.format(item.parsed.y); }
+            label: function(item) {
+              if (item.dataset.label === 'You') return null;
+              if (item.dataset.label.indexOf('Your meeting') === 0) {
+                return 'Your meeting: ' + moneyFmt.format(item.parsed.y);
+              }
+              // Main curve — look up the matching point for its duration too
+              var point = payload.curve[item.dataIndex];
+              var durationText = point ? point.minutesDisplay : '';
+              return 'At ' + item.parsed.x + ' people: ' + moneyFmt.format(item.parsed.y) +
+                     (durationText ? ' (' + durationText + ')' : '');
+            }
           }
         }
       },
@@ -226,7 +275,7 @@ function buildChart(payload) {
         x: {
           type: 'linear',
           min: 1,
-          max: 30,
+          max: curveMax,
           title: { display: true, text: 'Attendees', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
           ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
           grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
