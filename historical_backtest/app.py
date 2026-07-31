@@ -51,7 +51,12 @@ def _build_payload(inputs: hb.BacktestInputs) -> dict:
         else:
             status = "not_reached"
             years = None
-        points.append({"year": o.start_year, "years": years, "status": status})
+        points.append({
+            "year": o.start_year,
+            "years": years,
+            "status": status,
+            "progressPct": round(o.progress_pct, 1),
+        })
 
     return {
         "points": points,
