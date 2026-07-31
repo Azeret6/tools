@@ -53,7 +53,8 @@ DEFAULT_BENEFITS_MULTIPLIER = 1.3     # "fully loaded" cost incl. benefits,
                                        # finance/HR rule of thumb (1.25-1.4x)
 DEFAULT_WORKING_HOURS_PER_YEAR = 2080  # 52 weeks x 40 hours
 DEFAULT_ATTENDEES = 6
-MAX_ATTENDEES_CURVE = 30
+DEFAULT_CURVE_MAX_ATTENDEES = 15
+MAX_CURVE_ATTENDEES_CAP = 100  # sanity ceiling, even if a user types something huge
 
 RECURRENCE_PER_YEAR = {
     "none": 0,
@@ -75,6 +76,7 @@ class MeetingInputs:
     benefits_multiplier: float = DEFAULT_BENEFITS_MULTIPLIER
     working_hours_per_year: float = DEFAULT_WORKING_HOURS_PER_YEAR
     recurrence: str = "none"
+    curve_max_attendees: int = DEFAULT_CURVE_MAX_ATTENDEES
 
 
 @dataclass
@@ -152,7 +154,8 @@ def calculate_meeting(inputs: MeetingInputs) -> MeetingResult:
     annual_cost = total_cost * occurrences_per_year if occurrences_per_year else None
 
     curve = []
-    for n in range(1, MAX_ATTENDEES_CURVE + 1):
+    curve_max = max(1, min(inputs.curve_max_attendees, MAX_CURVE_ATTENDEES_CAP))
+    for n in range(1, curve_max + 1):
         m, _, _ = meeting_duration_minutes(
             n, inputs.core_minutes, inputs.round_robin,
             inputs.turn_minutes, inputs.overhead_growth_pct,
