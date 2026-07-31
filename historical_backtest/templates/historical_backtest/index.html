@@ -120,7 +120,10 @@ function buildChart(payload) {
   var data = payload.points.map(function(p) {
     if (p.status === 'reached') return p.years;
     if (p.status === 'not_reached') return horizonYears;
-    return 0;
+    // insufficient_data: give it a small but clearly visible sliver instead
+    // of 0, so the chart doesn't look like it silently stops here — the
+    // years genuinely exist, they just can't be fully tested yet.
+    return Math.max(horizonYears * 0.04, 0.5);
   });
   var colors = payload.points.map(function(p) { return statusColor(p.status); });
 
