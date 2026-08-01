@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monte Carlo FIRE Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('monte_carlo_simulator.static', filename='style.css') }}">
+</head>
+<body>
+
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<header class="masthead">
+  <p class="eyebrow">Financial Independence</p>
+  <h1>Monte Carlo FIRE Simulator</h1>
+  <p class="subtitle">Not the same as Historical Backtest. That tool replays the ~96 sequences that <em>actually happened</em>. This one generates thousands of <em>randomly simulated</em> futures — each year's return drawn from a distribution you set — to show the realistic spread of outcomes, not just one number.</p>
+</header>
+
+<form id="mc-form" method="post">
+  <div class="layout">
+
+    <div class="controls-panel">
+      <div class="panel">
+        <div class="field-group">
+          <label for="savings_rate_pct">Savings rate <span class="optional">(%)</span></label>
+          <input type="number" step="1" min="1" max="95" inputmode="decimal"
+            id="savings_rate_pct" name="savings_rate_pct" value="{{ values.savings_rate_pct }}">
+          <p class="hint">Independent of income — only the rate matters (same trick as Savings Rate Explorer).</p>
+        </div>
+
+        <hr class="divider">
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}" data-output="withdrawal_out">
+          <p class="hint">Recommended: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="horizon_years">Horizon</label>
+            <output id="horizon_out">{{ values.horizon_years }}y</output>
+          </div>
+          <input type="range" id="horizon_years" name="horizon_years" min="5" max="{{ max_horizon }}" step="1" value="{{ values.horizon_years }}" data-output="horizon_out">
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Return assumptions</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="mean_return_pct">Mean annual real return</label>
+            <output id="mean_out">{{ values.mean_return_pct }}%</output>
+          </div>
+          <input type="range" id="mean_return_pct" name="mean_return_pct" min="0" max="12" step="0.1" value="{{ values.mean_return_pct }}" data-output="mean_out">
+          <p class="hint">Default ~6.5% roughly matches long-run US stock market real returns.</p>
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="return_std_dev_pct">Annual volatility <span class="optional">(std. dev.)</span></label>
+            <output id="stddev_out">{{ values.return_std_dev_pct }}%</output>
+          </div>
+          <input type="range" id="return_std_dev_pct" name="return_std_dev_pct" min="0" max="30" step="0.5" value="{{ values.return_std_dev_pct }}" data-output="stddev_out">
+          <p class="hint">How much returns swing year to year. Higher = wider spread of outcomes, same average.</p>
+        </div>
+
+        <div class="field-group">
+          <label for="num_simulations">Number of simulations</label>
+          <input type="number" step="100" min="100" max="{{ max_simulations }}" inputmode="numeric"
+            id="num_simulations" name="num_simulations" value="{{ values.num_simulations }}">
+          <p class="hint">More simulations = smoother percentile bands, slightly slower to compute.</p>
+        </div>
+
+        <button type="submit" class="calculate-btn">Run simulation</button>
+      </div>
+
+      <div class="panel" id="stats-panel">
+        {% include 'monte_carlo_simulator/_stats.html' %}
+      </div>
+    </div>
+
+    <div class="panel chart-panel">
+      <div class="chart-canvas-wrap">
+        <canvas id="fanChart"></canvas>
+      </div>
+      <div class="chart-legend">
+        <span><span class="legend-swatch" style="background:rgba(47,111,82,0.12)"></span> 10th&ndash;90th percentile</span>
+        <span><span class="legend-swatch" style="background:rgba(47,111,82,0.3)"></span> 25th&ndash;75th percentile</span>
+        <span><span class="legend-swatch" style="background:#1F5A40"></span> Median</span>
+        <span><span class="legend-swatch" style="background:#B3402F"></span> FIRE target</span>
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<section class="explainer" style="max-width:88rem;margin:1.25rem auto 0;">
+  <p style="color:var(--mute);font-size:0.85rem;line-height:1.6;">Each simulation draws a random annual real return for every year of the horizon (independently, from a normal distribution with the mean and volatility you set above), compounds monthly, and checks whether the target was reached. Run enough of these and the spread of outcomes tells you something a single constant-return assumption never can: how much luck/timing genuinely matters. This is a standard, widely-used technique (the same kind of thing tools like FIRECalc's Monte Carlo mode do) — but the output is only as good as the assumed mean/volatility, which are estimates, not guarantees. See <a href="{{ hub_tools and (hub_tools | selectattr('folder','equalto','historical_backtest') | first).prefix or '/historical-backtest' }}/">Historical Backtest</a> for the same question answered with real historical sequences instead of random draws.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+}
+
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  if (!o) return;
+  var suffix = s.id === 'horizon_years' ? 'y' : '%';
+  var sync = function() {
+    var val = parseFloat(s.value);
+    var decimals = (s.step && s.step.toString().includes('.')) ? s.step.toString().split('.')[1].length : 0;
+    o.textContent = val.toFixed(decimals) + suffix;
+  };
+  s.addEventListener('input', sync); sync();
+});
+
+var payload = {{ chart_payload | tojson }};
+
+function buildChart(payload) {
+  var canvas = document.getElementById('fanChart');
+  if (!canvas) return null;
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className: 'hint', style: 'text-align:center;padding:3rem 0',
+      textContent: 'Chart requires internet access (Chart.js).'
+    }));
+    return null;
+  }
+
+  var years = payload.years;
+  function series(pct) {
+    return years.map(function(y, i) { return { x: y, y: payload.band[pct][i] }; });
+  }
+
+  var datasets = [
+    { label: '__p10', data: series('10'), borderColor: 'rgba(0,0,0,0)', pointRadius: 0, borderWidth: 0, fill: false, order: 5 },
+    { label: '10th–90th percentile', data: series('90'), borderColor: 'rgba(47,111,82,0.35)', borderWidth: 1, pointRadius: 0, fill: 0, backgroundColor: 'rgba(47,111,82,0.12)', tension: 0.15, order: 4 },
+    { label: '__p25', data: series('25'), borderColor: 'rgba(0,0,0,0)', pointRadius: 0, borderWidth: 0, fill: false, order: 3 },
+    { label: '25th–75th percentile', data: series('75'), borderColor: 'rgba(47,111,82,0.5)', borderWidth: 1, pointRadius: 0, fill: 2, backgroundColor: 'rgba(47,111,82,0.28)', tension: 0.15, order: 2 },
+    { label: 'Median', data: series('50'), borderColor: '#1F5A40', borderWidth: 2.5, pointRadius: 0, fill: false, tension: 0.15, order: 1 },
+    { label: 'FIRE target', data: [{ x: years[0], y: payload.target }, { x: years[years.length - 1], y: payload.target }], borderColor: 'rgba(179,64,47,0.6)', borderDash: [8, 5], borderWidth: 1.5, pointRadius: 0, fill: false, order: 0 },
+  ];
+
+  var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: '#DCE3DA', borderWidth: 1,
+          titleColor: '#1B2B27', bodyColor: '#6E7A73',
+          titleFont: { family: '"IBM Plex Mono"', size: 11, weight: '600' },
+          bodyFont: { family: '"IBM Plex Mono"', size: 11 },
+          padding: 10,
+          filter: function(item) { return item.dataset.label.indexOf('__') !== 0; },
+          callbacks: {
+            title: function(items) { return 'Year ' + items[0].parsed.x; },
+            label: function(item) { return item.dataset.label + ': ' + moneyFmt.format(item.parsed.y); }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Years', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73' },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        },
+        y: {
+          title: { display: true, text: 'Balance', font: { family: '"IBM Plex Mono"', size: 11 }, color: '#6E7A73' },
+          ticks: {
+            callback: function(v) { return v >= 1e6 ? (v/1e6).toFixed(1).replace(/\.0$/,'') + 'M' : (v >= 1000 ? (v/1000) + 'k' : v); },
+            font: { family: '"IBM Plex Mono"', size: 10 }, color: '#6E7A73'
+          },
+          grid: { color: 'rgba(220,227,218,0.6)' }, border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+window.fanChart = buildChart(payload);
+
+var _timer = null;
+function scheduleUpdate() { clearTimeout(_timer); _timer = setTimeout(doUpdate, 300); }
+function doUpdate() {
+  var form = document.getElementById('mc-form');
+  var data = new FormData(form);
+  fetch('?json=1', { method: 'POST', body: data })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      payload = resp;
+      if (window.fanChart) { window.fanChart.destroy(); window.fanChart = null; }
+      window.fanChart = buildChart(payload);
+
+      var panel = document.getElementById('stats-panel');
+      if (panel) {
+        var rows = '';
+        [10, 25, 50, 75, 90].forEach(function(p) {
+          var v = resp.percentileYears[String(p)];
+          rows += '<tr' + (p === 50 ? ' class="median-row"' : '') + '><td>' + p + 'th</td><td class="' + (p===50?'median':'') + '">' + (v != null ? v + 'y' : 'n/a') + '</td></tr>';
+        });
+        panel.innerHTML =
+          '<p class="section-label">Across ' + resp.numSimulations + ' random simulations</p>' +
+          '<p class="result-label">Success rate</p>' +
+          '<p class="big-number">' + resp.successRatePct + '%</p>' +
+          '<p class="hint">reached the target within the horizon</p>' +
+          '<table class="percentile-table"><thead><tr><th>Percentile</th><th>Years to FIRE</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      }
+    })
+    .catch(function(e) { console.warn('Update failed:', e); });
+}
+
+setTimeout(function() {
+  document.querySelectorAll('#mc-form input[type="range"]').forEach(function(s) {
+    s.addEventListener('input', scheduleUpdate);
+  });
+  document.getElementById('savings_rate_pct').addEventListener('input', scheduleUpdate);
+  document.getElementById('num_simulations').addEventListener('change', scheduleUpdate);
+}, 400);
+</script>
+</body>
+</html>
