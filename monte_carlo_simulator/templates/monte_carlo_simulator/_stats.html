@@ -1,0 +1,18 @@
+<p class="section-label">Across {{ chart_payload.numSimulations }} random simulations</p>
+<p class="result-label">Success rate</p>
+<p class="big-number">{{ chart_payload.successRatePct }}%</p>
+<p class="hint">reached the target within the horizon</p>
+<table class="percentile-table">
+  <thead><tr><th>Percentile</th><th>Years to FIRE</th></tr></thead>
+  <tbody>
+    {% for p in [10, 25, 50, 75, 90] %}
+    <tr{% if p == 50 %} class="median-row"{% endif %}>
+      <td>{{ p }}th</td>
+      <td{% if p == 50 %} class="median"{% endif %}>
+        {% set v = chart_payload.percentileYears[p|string] %}
+        {{ (v ~ 'y') if v is not none else 'n/a' }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
