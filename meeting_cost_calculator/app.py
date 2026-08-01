@@ -78,6 +78,9 @@ def index():
     values = {
         "attendees": mcc.DEFAULT_ATTENDEES,
         "avg_annual_salary": 90000,
+        "use_hourly_rate": False,
+        "hourly_rate_input": "",
+        "working_hours_per_year": mcc.DEFAULT_WORKING_HOURS_PER_YEAR,
         "core_minutes": mcc.DEFAULT_CORE_MINUTES,
         "round_robin": True,
         "turn_minutes": mcc.DEFAULT_TURN_MINUTES,
@@ -92,6 +95,11 @@ def index():
         form = request.form
         values["attendees"] = int(_parse_float(form, "attendees", values["attendees"]))
         values["avg_annual_salary"] = _parse_float(form, "avg_annual_salary", values["avg_annual_salary"])
+        values["use_hourly_rate"] = form.get("use_hourly_rate") == "on"
+        values["hourly_rate_input"] = form.get("hourly_rate_input", "")
+        values["working_hours_per_year"] = _parse_float(
+            form, "working_hours_per_year", values["working_hours_per_year"]
+        )
         values["core_minutes"] = _parse_float(form, "core_minutes", values["core_minutes"])
         values["round_robin"] = form.get("round_robin") == "on"
         values["turn_minutes"] = _parse_float(form, "turn_minutes", values["turn_minutes"])
@@ -105,6 +113,13 @@ def index():
         else:
             values["curve_max_attendees"] = mcc.DEFAULT_CURVE_MAX_ATTENDEES
 
+    hourly_override = None
+    if values["use_hourly_rate"] and values["hourly_rate_input"]:
+        try:
+            hourly_override = float(str(values["hourly_rate_input"]).strip().replace(",", "."))
+        except ValueError:
+            hourly_override = None
+
     # Always extend the curve at least as far as the current headcount,
     # so "You" is never off the edge of the chart.
     effective_curve_max = max(values["curve_max_attendees"], values["attendees"])
@@ -117,8 +132,10 @@ def index():
         turn_minutes=values["turn_minutes"],
         overhead_growth_pct=values["overhead_growth_pct"],
         benefits_multiplier=values["benefits_multiplier"],
+        working_hours_per_year=values["working_hours_per_year"],
         recurrence=values["recurrence"],
         curve_max_attendees=effective_curve_max,
+        hourly_cost_override=hourly_override,
     )
     chart_payload = _build_payload(inputs)
 
