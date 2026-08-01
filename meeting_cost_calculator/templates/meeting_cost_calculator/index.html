@@ -36,19 +36,41 @@
             id="attendees" name="attendees" value="{{ values.attendees }}">
         </div>
 
-        <div class="field-group">
+        <div class="field-group" id="salary_field">
           <label for="avg_annual_salary">Average annual salary <span class="optional">(fully loaded)</span></label>
           <input type="number" step="1000" min="0" inputmode="decimal"
             id="avg_annual_salary" name="avg_annual_salary" value="{{ values.avg_annual_salary }}">
         </div>
 
-        <div class="slider-group">
+        <div class="slider-group" id="benefits_field">
           <div class="slider-label">
             <label for="benefits_multiplier">Benefits &amp; overhead load</label>
             <output id="benefits_out">{{ values.benefits_multiplier }}x</output>
           </div>
           <input type="range" id="benefits_multiplier" name="benefits_multiplier" min="1" max="1.6" step="0.05" value="{{ values.benefits_multiplier }}" data-output="benefits_out">
           <p class="hint">"Fully loaded" cost incl. benefits &amp; payroll tax — common finance rule of thumb: 1.25–1.4&times; base salary.</p>
+        </div>
+
+        <div class="slider-group" id="hours_field">
+          <div class="slider-label">
+            <label for="working_hours_per_year">Working hours per year</label>
+            <output id="hours_out">{{ values.working_hours_per_year | int }}</output>
+          </div>
+          <input type="range" id="working_hours_per_year" name="working_hours_per_year" min="1000" max="2600" step="10" value="{{ values.working_hours_per_year }}" data-output="hours_out">
+          <p class="hint">Default 2,080 = 52 weeks &times; 40 hours. Adjust if your org works different hours (e.g. 4-day weeks, part-time-heavy team).</p>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="use_hourly_rate">
+            <input type="checkbox" id="use_hourly_rate" name="use_hourly_rate" {% if values.use_hourly_rate %}checked{% endif %}>
+            <strong>I know the hourly rate instead</strong>
+          </label>
+          <p class="hint">Skip the salary &rarr; hourly conversion above and enter the fully-loaded hourly cost directly.</p>
+        </div>
+        <div class="field-group" id="hourly_rate_field" {% if not values.use_hourly_rate %}hidden{% endif %}>
+          <label for="hourly_rate_input">Hourly cost per person <span class="optional">(fully loaded)</span></label>
+          <input type="number" step="1" min="0" inputmode="decimal"
+            id="hourly_rate_input" name="hourly_rate_input" value="{{ values.hourly_rate_input }}" placeholder="e.g. 65">
         </div>
 
         <hr class="divider">
@@ -147,10 +169,13 @@ if (typeof Chart !== 'undefined') {
 document.querySelectorAll('input[type="range"]').forEach(function(s) {
   var o = document.getElementById(s.dataset.output);
   if (!o) return;
+  if (s.id === 'working_hours_per_year') {
+    var syncHours = function(){ o.textContent = Math.round(parseFloat(s.value)).toLocaleString(); };
+    s.addEventListener('input', syncHours); syncHours();
+    return;
+  }
   var suffix = s.id === 'overhead_growth_pct' ? '%' : (s.id === 'benefits_multiplier' ? 'x' : 'm');
-  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(s.step < 1 ? 2 : (s.id === 'benefits_multiplier' ? 2 : (s.step < 1 ? 1 : (Number.isInteger(parseFloat(s.step)) ? 0 : 1)))) + suffix; };
-  // Simpler: just show the raw value with correct suffix, matching step precision
-  sync = function(){
+  var sync = function(){
     var val = parseFloat(s.value);
     var decimals = (s.step && s.step.toString().includes('.')) ? s.step.toString().split('.')[1].length : 0;
     o.textContent = val.toFixed(decimals) + suffix;
@@ -176,6 +201,27 @@ document.getElementById('extend_range').addEventListener('change', function(e) {
   scheduleUpdate();
 });
 document.getElementById('curve_max_attendees').addEventListener('input', scheduleUpdate);
+
+function toggleHourlyRate() {
+  var cb = document.getElementById('use_hourly_rate');
+  var hourlyField = document.getElementById('hourly_rate_field');
+  var salaryField = document.getElementById('salary_field');
+  var benefitsField = document.getElementById('benefits_field');
+  var hoursField = document.getElementById('hours_field');
+  if (hourlyField) hourlyField.hidden = !cb.checked;
+  [salaryField, benefitsField, hoursField].forEach(function(f) {
+    if (!f) return;
+    f.style.opacity = cb.checked ? '0.35' : '1';
+    f.style.pointerEvents = cb.checked ? 'none' : 'auto';
+  });
+}
+document.getElementById('use_hourly_rate').addEventListener('change', function() {
+  toggleHourlyRate();
+  scheduleUpdate();
+});
+document.getElementById('hourly_rate_input').addEventListener('input', scheduleUpdate);
+document.getElementById('working_hours_per_year').addEventListener('input', scheduleUpdate);
+toggleHourlyRate();
 
 var payload = {{ chart_payload | tojson }};
 
