@@ -77,6 +77,10 @@ class MeetingInputs:
     working_hours_per_year: float = DEFAULT_WORKING_HOURS_PER_YEAR
     recurrence: str = "none"
     curve_max_attendees: int = DEFAULT_CURVE_MAX_ATTENDEES
+    hourly_cost_override: float | None = None  # if set, used directly as the
+                                                 # fully-loaded hourly cost,
+                                                 # bypassing the salary/benefits/
+                                                 # working-hours derivation below
 
 
 @dataclass
@@ -129,7 +133,10 @@ def meeting_duration_minutes(
 
 
 def calculate_meeting(inputs: MeetingInputs) -> MeetingResult:
-    rate = hourly_cost(inputs.avg_annual_salary, inputs.benefits_multiplier, inputs.working_hours_per_year)
+    if inputs.hourly_cost_override is not None:
+        rate = inputs.hourly_cost_override
+    else:
+        rate = hourly_cost(inputs.avg_annual_salary, inputs.benefits_multiplier, inputs.working_hours_per_year)
 
     total_minutes, discussion_minutes, overhead_factor = meeting_duration_minutes(
         inputs.attendees, inputs.core_minutes, inputs.round_robin,
