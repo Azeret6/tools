@@ -84,6 +84,12 @@ TOOLS = [
         "title": "Meeting Cost Calculator",
         "description": "What a meeting actually costs — and why bigger meetings run disproportionately longer, not just cost more per minute.",
     },
+    {
+        "folder": "monte_carlo_simulator",
+        "prefix": "/monte-carlo",
+        "title": "Monte Carlo Simulator",
+        "description": "Thousands of randomly simulated futures — a probability fan chart, not just one number. Complements Historical Backtest.",
+    },
 ]
 
 
