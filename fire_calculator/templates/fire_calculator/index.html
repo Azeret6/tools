@@ -141,6 +141,22 @@
           <p class="hint">Shows a band: 5 pp more savings (green) or less (red).</p>
         </div>
 
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="montecarlo">
+            <input type="checkbox" id="montecarlo" name="montecarlo" {% if values.montecarlo %}checked{% endif %}>
+            <strong>Show simulated uncertainty</strong>
+          </label>
+          <p class="hint">Runs 300 random simulations (market returns vary year to year instead of staying constant) and shows the spread of outcomes as a band. Not the same as the ±5% scenarios above — this varies <em>returns</em>, not your savings rate.</p>
+        </div>
+        <div class="slider-group" id="montecarlo_fields" {% if not values.montecarlo %}hidden{% endif %}>
+          <div class="slider-label">
+            <label for="return_std_dev_pct">Annual volatility <span class="optional">(std. dev.)</span></label>
+            <output id="stddev_out">{{ values.return_std_dev_pct }}%</output>
+          </div>
+          <input type="range" id="return_std_dev_pct" name="return_std_dev_pct" min="0" max="30" step="0.5" value="{{ values.return_std_dev_pct }}" data-output="stddev_out">
+          <p class="hint">Default ~18% roughly matches historical stock market swings.</p>
+        </div>
+
         <hr class="divider">
         <p class="section-label">Assumptions</p>
 
@@ -438,6 +454,30 @@ function buildDatasets(payload) {
       pointRadius:0, tension:0.25, fill:false, order:3 });
   }
 
+  // Monte Carlo uncertainty band (10th-90th and 25th-75th percentile,
+  // fill-between pairs same technique as the scenario band above).
+  // Blue-ish tint (vs. the scenario band's green) so the two don't read
+  // as the same kind of thing when both are shown at once.
+  if (payload.montecarlo) {
+    var mc = payload.montecarlo;
+    // Outer band: 10th-90th percentile
+    ds.push({ label:'10th–90th percentile (simulated)', data:mc['90'],
+      borderColor:'rgba(59,110,165,0.25)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:'+1',
+      backgroundColor:'rgba(59,110,165,0.08)', order:6 });
+    ds.push({ label:'__mc10', data:mc['10'],
+      borderColor:'rgba(59,110,165,0.25)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:false, order:6 });
+    // Inner band: 25th-75th percentile
+    ds.push({ label:'25th–75th percentile (simulated)', data:mc['75'],
+      borderColor:'rgba(59,110,165,0.4)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:'+1',
+      backgroundColor:'rgba(59,110,165,0.16)', order:6 });
+    ds.push({ label:'__mc25', data:mc['25'],
+      borderColor:'rgba(59,110,165,0.4)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:false, order:6 });
+  }
+
   // Main projection
   ds.push({ label:'Projected net worth', data:payload.projection,
     borderColor:'#3B6EA5', borderWidth:3,
@@ -517,7 +557,7 @@ function chartOptions(payload) {
           },
           label: function(item){
             var lbl = item.dataset.label;
-            if (lbl === 'FIRE target' || lbl === 'Coast FIRE' || lbl.indexOf('__ms') === 0) return null;
+            if (lbl === 'FIRE target' || lbl === 'Coast FIRE' || lbl.indexOf('__ms') === 0 || lbl.indexOf('__mc') === 0) return null;
             if (lbl === '__m') {
               // Crossing marker — show it in tooltip with its label property
               return item.dataset.data[0] && item.dataset.data[0].label
@@ -696,13 +736,21 @@ setTimeout(function() {
     s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
   });
 
-  // Scenario checkbox: live-updates too (just toggles curves, view preserved).
+  // Scenario / Monte Carlo checkboxes: live-update too (view preserved).
   document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
     cb.addEventListener('change', function(){
-      if (cb.id === 'scenarios') _preserveZoomOnce = true;
+      if (cb.id === 'scenarios' || cb.id === 'montecarlo') _preserveZoomOnce = true;
       scheduleLiveUpdate(150);
     });
   });
+
+  var montecarloCb = document.getElementById('montecarlo');
+  var montecarloFields = document.getElementById('montecarlo_fields');
+  if (montecarloCb && montecarloFields) {
+    montecarloCb.addEventListener('change', function(){
+      montecarloFields.hidden = !montecarloCb.checked;
+    });
+  }
 
   // Numeric inputs: do NOT auto-recalculate (avoids premature validation
   // errors while the user is still typing). Just mark results as stale —
