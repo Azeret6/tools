@@ -168,6 +168,8 @@ def index():
         "savings_target_years": "",
         "scenarios": False,
         "calc_mode": "full_fire",
+        "montecarlo": False,
+        "return_std_dev_pct": fc.DEFAULT_RETURN_STD_DEV_PCT,
     }
     context = {
         "values": values,
@@ -208,6 +210,10 @@ def index():
         values["savings_target_income"] = form.get("savings_target_income", "")
         values["savings_target_years"] = form.get("savings_target_years", "")
         values["scenarios"] = form.get("scenarios") == "on"
+        values["montecarlo"] = form.get("montecarlo") == "on"
+        values["return_std_dev_pct"] = _parse_form_float(
+            form, "return_std_dev_pct", values["return_std_dev_pct"]
+        )
         # calc_mode radio: full_fire | target_fire | required_savings | coast_fire
         calc_mode = form.get("calc_mode", "full_fire")
         values["calc_mode"] = calc_mode
@@ -570,6 +576,29 @@ def index():
                         y_candidates.append(s["fire_number"])
                     if history:
                         y_candidates.extend(v for _, v in history)
+                    # Monte Carlo uncertainty band — only computed when the
+                    # checkbox is on (unlike the ±5% scenarios, this runs
+                    # hundreds of random simulations, so it's not cheap enough
+                    # to always compute just for axis stability; the JS side
+                    # preserves the current zoom when this checkbox is
+                    # toggled, as a lighter-weight way to avoid a jarring
+                    # axis jump).
+                    if values["montecarlo"]:
+                        band = fc.simulate_uncertainty_band(
+                            inputs, result, max_horizon,
+                            return_std_dev_pct=values["return_std_dev_pct"],
+                        )
+                        context["chart_payload"]["montecarlo"] = {
+                            str(p): [
+                                {"x": _to_epoch_ms(d), "y": round(v, 2)}
+                                for d, v in zip(dates_main, band[p])
+                            ]
+                            for p in fc.MONTE_CARLO_PERCENTILES
+                        }
+                        # Make sure the wide band doesn't get clipped by a
+                        # Y-axis sized only for the deterministic curves.
+                        y_candidates.append(band[90][-1])
+
                     context["chart_payload"]["yMax"] = max(y_candidates) * 1.08
                     context["chart_payload"]["yMin"] = 0
 
