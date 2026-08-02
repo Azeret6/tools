@@ -64,6 +64,8 @@ calculation itself has no external dependencies.
 from __future__ import annotations
 
 import datetime as _dt
+import random
+import statistics
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
@@ -619,6 +621,83 @@ def compute_projection_series(
 
     dates = [_add_months(anchor_date, m) for m in range(n)]
     return dates, balances
+
+
+# Percentiles shown in the uncertainty band, and the default volatility
+# assumption -- roughly matches long-run US stock market annual real
+# return volatility (same default used by the standalone
+# monte_carlo_simulator tool; this function is its own self-contained
+# copy of that logic, per this repo's no-cross-dependency rule).
+MONTE_CARLO_PERCENTILES = (10, 25, 50, 75, 90)
+DEFAULT_RETURN_STD_DEV_PCT = 18.0
+DEFAULT_MONTE_CARLO_SIMULATIONS = 300
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    k = (len(s) - 1) * (pct / 100)
+    f, c = int(k), min(int(k) + 1, len(s) - 1)
+    if f == c:
+        return s[f]
+    return s[f] + (s[c] - s[f]) * (k - f)
+
+
+def simulate_uncertainty_band(
+    inputs: "FireInputs",
+    result: "FireResult",
+    horizon_months: int,
+    return_std_dev_pct: float = DEFAULT_RETURN_STD_DEV_PCT,
+    num_simulations: int = DEFAULT_MONTE_CARLO_SIMULATIONS,
+    random_seed: int | None = None,
+) -> dict[int, list[float]]:
+    """Monte Carlo uncertainty band around the main projection: runs
+    `num_simulations` random simulations (each year's real return drawn
+    from a normal distribution centred on `result.real_return_pct`, with
+    the given standard deviation), and returns, for each percentile in
+    MONTE_CARLO_PERCENTILES, the balance at every month of the horizon.
+
+    Uses the SAME starting balance, monthly contribution, and savings
+    growth as the main (deterministic) projection -- only the *return*
+    is randomised, so the band shows "how much does market luck alone
+    change the outcome", holding your own savings behaviour fixed.
+    """
+    rng = random.Random(random_seed)
+    mean = result.real_return_pct / 100
+    std_dev = max(return_std_dev_pct, 0) / 100
+    has_growth = abs(result.real_savings_growth_pct) > 1e-9
+    monthly_savings_growth = (
+        (1 + result.real_savings_growth_pct / 100) ** (1 / 12) - 1 if has_growth else 0.0
+    )
+
+    all_paths: list[list[float]] = []
+    for _ in range(max(1, num_simulations)):
+        balance = inputs.current_net_worth
+        savings = inputs.monthly_savings
+        path = [balance]
+        month = 0
+        while month < horizon_months:
+            annual_real = rng.gauss(mean, std_dev)
+            monthly_rate = (1 + annual_real) ** (1 / 12) - 1
+            for _ in range(12):
+                if month >= horizon_months:
+                    break
+                balance = balance * (1 + monthly_rate) + savings
+                if has_growth:
+                    savings = savings * (1 + monthly_savings_growth)
+                month += 1
+                path.append(balance)
+        all_paths.append(path)
+
+    n_points = horizon_months + 1
+    band: dict[int, list[float]] = {p: [] for p in MONTE_CARLO_PERCENTILES}
+    for i in range(n_points):
+        values_at_i = [path[i] for path in all_paths if i < len(path)]
+        for p in MONTE_CARLO_PERCENTILES:
+            band[p].append(_percentile(values_at_i, p))
+
+    return band
 
 
 def build_projection_figure(
