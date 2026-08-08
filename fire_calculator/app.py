@@ -68,10 +68,20 @@ def _to_epoch_ms(d: _dt.date) -> int:
     return int(_dt.datetime(d.year, d.month, d.day, tzinfo=_dt.timezone.utc).timestamp() * 1000)
 
 
-def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) -> dict:
+def _build_chart_payload(
+    inputs: fc.FireInputs, result: fc.FireResult, history, goal_override: dict | None = None
+) -> dict:
     """Compute the JSON-serializable data the client-side chart needs:
     the projection curve, the recorded history (if any), a horizontal
-    target line, and the crossing-point marker."""
+    target line, and the crossing-point marker.
+
+    By default the "goal" plotted (target line / marker / milestones /
+    fireNumber) is the Full-FIRE-or-partial number in `result`. Required
+    Savings mode instead needs the target derived from the desired
+    retirement income, which is a different number -- `goal_override`
+    (dict with keys amount/date/years/months/already_reached) swaps it in,
+    so the chart never mixes the two.
+    """
     dates, balances = fc.compute_projection_series(inputs, result)
     main_horizon_months = len(dates) - 1  # passed to scenarios so they match
     projection_points = [{"x": _to_epoch_ms(d), "y": round(v, 2)} for d, v in zip(dates, balances)]
@@ -81,18 +91,37 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
         history_points = [{"x": _to_epoch_ms(d), "y": v} for d, v in history]
 
     all_x = [p["x"] for p in projection_points] + [p["x"] for p in history_points]
+
+    goal_amount = goal_override["amount"] if goal_override else result.fire_number
+
     target_points = []
     if all_x:
         target_points = [
-            {"x": min(all_x), "y": result.fire_number},
-            {"x": max(all_x), "y": result.fire_number},
+            {"x": min(all_x), "y": goal_amount},
+            {"x": max(all_x), "y": goal_amount},
         ]
 
     marker_point = None
-    if result.months_to_fire is not None and result.fire_date is not None:
+    if goal_override:
+        if goal_override.get("already_reached"):
+            marker_point = {
+                "x": _to_epoch_ms(inputs.as_of_date),
+                "y": goal_amount,
+                "label": "Already there!",
+            }
+        elif goal_override.get("date") is not None:
+            marker_point = {
+                "x": _to_epoch_ms(goal_override["date"]),
+                "y": goal_amount,
+                "label": (
+                    f"{goal_override['date'].strftime('%B %Y')} "
+                    f"({goal_override['years']}y {goal_override['months']}m)"
+                ),
+            }
+    elif result.months_to_fire is not None and result.fire_date is not None:
         marker_point = {
             "x": _to_epoch_ms(result.fire_date),
-            "y": result.fire_number,
+            "y": goal_amount,
             "label": f"{result.fire_date.strftime('%B %Y')} ({result.years_part}y {result.months_part}m)",
         }
 
@@ -123,7 +152,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
     # chart and as a list in the results panel (b16).
     milestones = []
     for pct in (25, 50, 75):
-        value = result.fire_number * pct / 100
+        value = goal_amount * pct / 100
         cross_ms = None
         for p in projection_points:
             if p["y"] >= value:
@@ -136,7 +165,7 @@ def _build_chart_payload(inputs: fc.FireInputs, result: fc.FireResult, history) 
         "history": history_points,
         "target": target_points,
         "marker": marker_point,
-        "fireNumber": result.fire_number,
+        "fireNumber": goal_amount,
         "coastTarget": coast_target_points,
         "coastMarker": coast_marker_point,
         "coastFireNumber": result.coast_fire_number,
@@ -257,7 +286,14 @@ def index():
         current_age = int(current_age_raw) if current_age_raw.isdigit() else None
         retirement_age = int(retirement_age_raw) if retirement_age_raw.isdigit() else None
 
-        if not context["error"] and (
+        # Required Savings mode only needs the target income + horizon --
+        # annual income / monthly savings are optional there (just an
+        # optional "current pace" baseline), so they default to 0 instead
+        # of being required.
+        if calc_mode == "required_savings":
+            annual_income = annual_income if annual_income is not None else 0.0
+            monthly_savings = monthly_savings if monthly_savings is not None else 0.0
+        elif not context["error"] and (
             annual_income is None or monthly_savings is None
         ):
             context["error"] = (
@@ -360,10 +396,24 @@ def index():
                     context["display"]["st_gap"] = f"{abs(gap):,.0f}"
                     context["display"]["st_gap_positive"] = gap > 0
                     context["display"]["st_already_enough"] = gap <= 0
+                    # "At current pace" — time to reach the target at the
+                    # actual (optional) monthly_savings, as opposed to
+                    # st_required_monthly above (needed to hit it within
+                    # the horizon specifically).
+                    context["display"]["st_already_reached"] = result.st_already_reached
+                    if result.st_already_reached:
+                        pass
+                    elif result.st_target_date is not None:
+                        context["display"]["st_years_to_target"] = result.st_years_to_target
+                        context["display"]["st_months_to_target_part"] = result.st_months_to_target_part
+                        context["display"]["st_target_date"] = result.st_target_date.strftime("%B %Y")
 
                 # Nominal monthly income at retirement — what the withdrawal
                 # will look like in the actual prices of the year you retire.
-                if result.months_to_fire is not None:
+                # (Skipped in Required Savings mode: this is derived from
+                # annual_expenses, i.e. the unrelated Full-FIRE number, not
+                # the desired retirement income being solved for here.)
+                if result.months_to_fire is not None and not values["savings_target"]:
                     years_to_fire = result.months_to_fire / 12
                     inflation = values["inflation_pct"] / 100
                     monthly_today = (
@@ -377,7 +427,13 @@ def index():
                     context["display"]["fire_year"] = result.fire_date.year
 
                 # Savings progression table (only when savings growth is active).
-                if abs(values["savings_growth_pct"]) > 0.01 and result.months_to_fire is not None:
+                # Also skipped in Required Savings mode, for the same reason
+                # as the block above (it's keyed to the Full-FIRE date).
+                if (
+                    abs(values["savings_growth_pct"]) > 0.01
+                    and result.months_to_fire is not None
+                    and not values["savings_target"]
+                ):
                     real_growth = result.real_savings_growth_pct / 100
                     inflation = values["inflation_pct"] / 100
                     # Nominal savings at year t = real_savings(t) * inflation_factor(t)
@@ -401,7 +457,23 @@ def index():
                         })
                     context["display"]["savings_milestones"] = milestones
 
-                context["chart_payload"] = _build_chart_payload(inputs, result, history)
+                # Required Savings mode plots/targets the desired-income
+                # number (st_target_amount), not the unrelated Full-FIRE
+                # number in result.fire_number — see _build_chart_payload.
+                goal_override = None
+                if values["savings_target"] and result.st_target_amount is not None:
+                    goal_override = {
+                        "amount": result.st_target_amount,
+                        "date": result.st_target_date,
+                        "years": result.st_years_to_target,
+                        "months": result.st_months_to_target_part,
+                        "already_reached": result.st_already_reached,
+                    }
+                chart_goal_amount = goal_override["amount"] if goal_override else result.fire_number
+
+                context["chart_payload"] = _build_chart_payload(
+                    inputs, result, history, goal_override=goal_override
+                )
 
                 # Subtitle data for the badge above the chart — needed for live updates
                 # because the badge is outside #results-area and isn't replaced by doLiveUpdate
@@ -414,7 +486,16 @@ def index():
                 _mode = _mode_labels.get(calc_mode, "Full FIRE")
                 context["display"]["mode_label"] = _mode
 
-                if result.is_partial and result.desired_monthly_income_today is not None:
+                if goal_override:
+                    if goal_override["already_reached"]:
+                        _detail = f"goal {chart_goal_amount:,.0f} · already there"
+                    elif goal_override["date"] is not None:
+                        _detail = (f"goal {chart_goal_amount:,.0f}"
+                                   f" · {goal_override['date'].strftime('%B %Y')}"
+                                   f" at current pace")
+                    else:
+                        _detail = f"goal {chart_goal_amount:,.0f} · not reachable at current pace"
+                elif result.is_partial and result.desired_monthly_income_today is not None:
                     _detail = (f"target {result.desired_monthly_income_today:,.0f}/mo"
                                f" · goal {result.fire_number:,.0f}"
                                + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
@@ -422,6 +503,8 @@ def index():
                     _detail = (f"goal {result.fire_number:,.0f}"
                                + (f" · {result.fire_date.strftime('%B %Y')}" if result.fire_date else ""))
                 context["chart_payload"]["subtitle"] = {"mode": _mode, "detail": _detail}
+                if goal_override:
+                    context["chart_payload"]["targetLabel"] = "Goal"
 
                 # Milestones for the results panel (25/50/75 % of target + dates)
                 _ms_display = []
@@ -445,29 +528,42 @@ def index():
                         ("−5 % savings rate", -delta, "#B3402F"),
                     ]
 
-                    # Phase 1: compute all scenario results (no projections yet)
+                    # Phase 1: compute all scenario results (no projections yet).
+                    # Skipped entirely in Required Savings mode -- a ±5% "savings
+                    # rate" scenario needs a real income to derive its delta from,
+                    # which this mode doesn't require (the UI also disables the
+                    # checkbox for this mode, so values["scenarios"] is False).
                     phase1 = []
-                    for label, sign, color in scenario_defs:
-                        new_savings = max(0.0, inputs.monthly_savings + delta * (1 if sign > 0 else -1))
-                        inp_s = fc.FireInputs(
-                            current_net_worth=inputs.current_net_worth,
-                            annual_income=inputs.annual_income,
-                            monthly_savings=new_savings,
-                            nominal_return_pct=inputs.nominal_return_pct,
-                            inflation_pct=inputs.inflation_pct,
-                            withdrawal_rate_pct=inputs.withdrawal_rate_pct,
-                            savings_growth_pct=inputs.savings_growth_pct,
-                            as_of_date=inputs.as_of_date,
-                        )
-                        try:
-                            res_s = fc.calculate_fire(inp_s)
-                        except ValueError:
-                            continue
-                        phase1.append((label, color, inp_s, res_s))
+                    if not values["savings_target"]:
+                        for label, sign, color in scenario_defs:
+                            new_savings = max(0.0, inputs.monthly_savings + delta * (1 if sign > 0 else -1))
+                            inp_s = fc.FireInputs(
+                                current_net_worth=inputs.current_net_worth,
+                                annual_income=inputs.annual_income,
+                                monthly_savings=new_savings,
+                                nominal_return_pct=inputs.nominal_return_pct,
+                                inflation_pct=inputs.inflation_pct,
+                                withdrawal_rate_pct=inputs.withdrawal_rate_pct,
+                                savings_growth_pct=inputs.savings_growth_pct,
+                                as_of_date=inputs.as_of_date,
+                            )
+                            try:
+                                res_s = fc.calculate_fire(inp_s)
+                            except ValueError:
+                                continue
+                            phase1.append((label, color, inp_s, res_s))
 
-                    # Phase 2: find the maximum natural horizon across all projections
+                    # Phase 2: find the maximum natural horizon across all projections.
+                    # Required Savings mode sizes around its own goal (mirrors the
+                    # same logic in fire_calculator.compute_projection_series) --
+                    # res.months_to_fire is an unrelated Full-FIRE byproduct there.
                     def _natural_horizon(res):
-                        if res.months_to_fire is not None:
+                        if values["savings_target"]:
+                            if res.st_months_to_target is not None:
+                                h = max(round(res.st_months_to_target * 1.15), round(res.st_months_to_target) + 6)
+                            else:
+                                h = 40 * 12
+                        elif res.months_to_fire is not None:
                             h = max(round(res.months_to_fire * 1.15), round(res.months_to_fire) + 6)
                         else:
                             h = 40 * 12
@@ -476,6 +572,8 @@ def index():
                         return h
 
                     max_horizon = _natural_horizon(result)
+                    if values["savings_target"] and inputs.savings_target_years:
+                        max_horizon = max(max_horizon, round(inputs.savings_target_years * 12) + 6)
                     for _, _, _, res_s in phase1:
                         max_horizon = max(max_horizon, _natural_horizon(res_s))
 
@@ -498,7 +596,7 @@ def index():
                     # Recompute milestone crossings against the extended projection
                     new_milestones = []
                     for pct in (25, 50, 75):
-                        value = result.fire_number * pct / 100
+                        value = chart_goal_amount * pct / 100
                         cross_ms = None
                         for p in context["chart_payload"]["projection"]:
                             if p["y"] >= value:
@@ -567,7 +665,7 @@ def index():
                     # prevents the chart from jumping/rescaling when the checkbox
                     # is toggled: the framing is always sized as if scenarios were
                     # visible, so turning them on/off never changes the axes.
-                    y_candidates = [bal_main[-1] if bal_main else 0, result.fire_number]
+                    y_candidates = [bal_main[-1] if bal_main else 0, chart_goal_amount]
                     if result.coast_fire_number:
                         y_candidates.append(result.coast_fire_number)
                     for s in scenario_results:
