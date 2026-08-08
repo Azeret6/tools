@@ -98,8 +98,14 @@ class FireInputs:
     """All user-provided inputs for the FIRE calculation."""
 
     current_net_worth: float       # Current invested assets / starting balance
-    annual_income: float           # Net (take-home) annual income
-    monthly_savings: float         # Amount invested every month
+    # Net (take-home) annual income and monthly savings amount. Both default
+    # to 0 because Required Savings mode doesn't need them for its own
+    # calculation (target amount + horizon are enough) -- they're only used
+    # there, if provided, as an optional "current pace" baseline for
+    # comparison. Full/Target/Coast FIRE modes still require real values;
+    # that's enforced in the web UI (app.py), not here.
+    annual_income: float = 0.0
+    monthly_savings: float = 0.0
     nominal_return_pct: float = DEFAULT_NOMINAL_RETURN_PCT
     inflation_pct: float = DEFAULT_INFLATION_PCT
     withdrawal_rate_pct: float = DEFAULT_WITHDRAWAL_RATE_PCT
@@ -160,6 +166,14 @@ class FireResult:
     st_target_amount: float | None = None       # FIRE number derived from savings_target_income
     st_required_monthly: float | None = None    # monthly savings needed to hit target in time
     st_gap: float | None = None                 # required − current (positive = need more, negative = enough)
+    # Time to reach st_target_amount at the user's actual (optional)
+    # monthly_savings pace -- distinct from st_required_monthly, which is
+    # the monthly amount needed to hit the target within the fixed horizon.
+    st_months_to_target: float | None = None
+    st_years_to_target: int = 0
+    st_months_to_target_part: int = 0
+    st_target_date: _dt.date | None = None
+    st_already_reached: bool = False            # current_net_worth already >= st_target_amount
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +200,12 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
     annual_savings = inputs.monthly_savings * 12
     annual_expenses = inputs.annual_income - annual_savings
 
-    if annual_expenses <= 0:
+    # This check only makes sense when a Full/Target/Coast FIRE number is
+    # actually being derived from income minus savings. In Required Savings
+    # mode, annual_income/monthly_savings are optional (a "current pace"
+    # baseline, not the basis of the target), so annual_expenses/fire_number
+    # here are unused byproducts and shouldn't block the calculation.
+    if annual_expenses <= 0 and not inputs.savings_target:
         raise ValueError(
             "Monthly savings imply zero or negative annual expenses "
             "(monthly_savings * 12 >= annual_income). Please check your "
@@ -324,6 +343,37 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
             )
         st_gap = st_required_monthly - inputs.monthly_savings
 
+    # Time to reach st_target_amount at the actual monthly_savings pace
+    # (0 if not provided/left blank) -- answers "at this pace, how long
+    # until I reach my goal?", as opposed to st_required_monthly which
+    # answers "what would I need to save to reach it within my horizon?".
+    st_months_to_target = st_target_date = None
+    st_years_to_target = st_months_to_target_part = 0
+    st_already_reached = False
+
+    if st_target_amount is not None:
+        if inputs.current_net_worth >= st_target_amount:
+            st_already_reached = True
+        else:
+            if abs(annual_real_savings_growth) < 1e-9:
+                st_months_to_target = _months_to_reach_target(
+                    starting_balance=inputs.current_net_worth,
+                    monthly_contribution=inputs.monthly_savings,
+                    annual_return=annual_real_return,
+                    target=st_target_amount,
+                )
+            else:
+                st_months_to_target = _simulate_to_target(
+                    starting_balance=inputs.current_net_worth,
+                    monthly_savings=inputs.monthly_savings,
+                    annual_real_return=annual_real_return,
+                    target=st_target_amount,
+                    annual_real_savings_growth=annual_real_savings_growth,
+                )
+            if st_months_to_target is not None:
+                st_years_to_target, st_months_to_target_part = divmod(round(st_months_to_target), 12)
+                st_target_date = _add_months(inputs.as_of_date, round(st_months_to_target))
+
     return FireResult(
         annual_expenses=annual_expenses,
         fire_number=fire_number,
@@ -346,6 +396,11 @@ def calculate_fire(inputs: FireInputs) -> FireResult:
         st_target_amount=st_target_amount,
         st_required_monthly=st_required_monthly,
         st_gap=st_gap,
+        st_months_to_target=st_months_to_target,
+        st_years_to_target=st_years_to_target,
+        st_months_to_target_part=st_months_to_target_part,
+        st_target_date=st_target_date,
+        st_already_reached=st_already_reached,
     )
 
 
@@ -588,7 +643,18 @@ def compute_projection_series(
     """
     monthly_rate = (1 + result.real_return_pct / 100) ** (1 / 12) - 1
 
-    if result.months_to_fire is not None:
+    # Required Savings mode sizes the horizon around its own goal (the
+    # crossing point at the current pace), not `result.months_to_fire` --
+    # that's a byproduct of an unrelated Full-FIRE calc (see calculate_fire)
+    # and can imply a much longer/shorter horizon than this goal needs.
+    if inputs.savings_target:
+        if result.st_months_to_target is not None:
+            horizon_months = max(
+                round(result.st_months_to_target * 1.15), round(result.st_months_to_target) + 6
+            )
+        else:
+            horizon_months = 40 * 12  # goal not reached at current pace -> generic long view
+    elif result.months_to_fire is not None:
         horizon_months = max(round(result.months_to_fire * 1.15), round(result.months_to_fire) + 6)
     else:
         horizon_months = 40 * 12
@@ -596,6 +662,11 @@ def compute_projection_series(
     # Extend horizon to show Coast FIRE crossing point if it falls later.
     if result.months_to_coast is not None:
         horizon_months = max(horizon_months, round(result.months_to_coast) + 6)
+
+    # Required Savings mode: also make sure the user's specified horizon
+    # itself is always in view, even if the goal is reached earlier/later.
+    if inputs.savings_target and inputs.savings_target_years:
+        horizon_months = max(horizon_months, round(inputs.savings_target_years * 12) + 6)
 
     # Enforce caller-supplied minimum (used so scenario projections match main).
     horizon_months = max(horizon_months, min_horizon_months)
