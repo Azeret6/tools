@@ -1,133 +1,789 @@
-{% if error %}
-<div class="error-banner">
-  <p class="error-label">Could not calculate</p>
-  <p>{{ error }}</p>
-</div>
-{% elif display %}
-<div class="panel results-panel">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIRE Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('fire_calculator.static', filename='style.css') }}">
+</head>
+<body>
 
-  {% if display.mode_label == 'Required Savings' %}
-    <!-- ═══ Hero: Required Savings ═══ -->
-    <p class="result-label">Required savings — {{ display.st_years }}y / {{ display.st_income }}/mo</p>
-    {% if display.st_already_enough %}
-      <p class="coast-achieved">✓ Already saving enough.</p>
-      <p class="result-sub">You could save {{ display.st_gap }} less/mo and still hit your target.</p>
-    {% else %}
-      <p class="big-number" style="color:var(--brick)">{{ display.st_required_monthly }}<span class="unit">/mo</span></p>
-      <p class="result-sub">to reach your goal within {{ display.st_years }} years</p>
-    {% endif %}
-    <div class="ledger-rows">
-      <div class="ledger-row"><span>Target amount</span><span class="num">{{ display.st_target_amount }}</span></div>
-      <div class="ledger-row"><span>Currently saving</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
-      {% if not display.st_already_enough %}
-      <div class="ledger-row"><span>Monthly gap</span><span class="num" style="color:var(--brick)">+{{ display.st_gap }}/mo</span></div>
-      {% endif %}
-      {% if display.st_already_reached %}
-      <div class="ledger-row"><span>At current pace</span><span class="num">already there</span></div>
-      {% elif display.st_target_date %}
-      <div class="ledger-row"><span>At current pace</span><span class="num">{{ display.st_years_to_target }}y {{ display.st_months_to_target_part }}m — {{ display.st_target_date }}</span></div>
-      {% else %}
-      <div class="ledger-row"><span>At current pace</span><span class="num">not reachable</span></div>
-      {% endif %}
-      <div class="ledger-row"><span>Real return</span><span class="num">{{ display.real_return_pct }}%</span></div>
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{% if t.folder == hub_active %} active{% endif %}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<header class="masthead">
+  <p class="eyebrow">Financial Independence</p>
+  <h1>FIRE Calculator</h1>
+  <p class="subtitle">Estimate how long until your investments can cover your expenses.</p>
+</header>
+
+<form id="fc-form" method="post" enctype="multipart/form-data" novalidate>
+
+  <!-- ═══ ZONE 1: Top inputs + Calculate (full width) ═══ -->
+  <div class="zone-top panel">
+    <div class="top-labels">
+      <label for="savings_diary">Savings diary <span class="optional">(optional CSV)</span></label>
+      <label for="current_net_worth">Current net worth</label>
+      <label for="annual_income">Annual net income <span class="optional" id="income-optional-tag" hidden>(optional here)</span></label>
+      <label for="monthly_savings">Monthly savings <span class="optional" id="ms-optional-tag" hidden>(optional — current pace, for comparison)</span></label>
+      <span></span>
     </div>
-
-  {% elif display.mode_label == 'Coast FIRE' %}
-    <!-- ═══ Hero: Coast FIRE (no duplicate heading) ═══ -->
-    <p class="result-label">Coast FIRE</p>
-    {% if display.already_coast %}
-      <p class="coast-achieved">✓ Already reached — you could stop saving now.</p>
-    {% else %}
-      <p class="big-number">{{ display.years_coast }}<span class="unit">y</span> {{ display.months_coast }}<span class="unit">m</span></p>
-      <p class="result-sub">{{ display.coast_date }}</p>
-    {% endif %}
-    <div class="ledger-rows">
-      <div class="ledger-row"><span>Coast FIRE number</span><span class="num">{{ display.coast_fire_number }}</span></div>
-      {% if display.reachable %}
-      <div class="ledger-row"><span>Full FIRE if you keep saving</span><span class="num">{{ display.years }}y {{ display.months }}m</span></div>
-      {% endif %}
+    <div class="top-inputs">
+      <div>
+        <input type="file" id="savings_diary" name="savings_diary" accept=".csv"
+          title="Columns: date, net_worth — most recent entry sets your current net worth">
+        {% if history_count %}<p class="hint loaded">{{ history_count }} entries loaded.</p>{% endif %}
+      </div>
+      <div>
+        <input type="number" step="any" min="0" inputmode="decimal"
+          id="current_net_worth" name="current_net_worth"
+          value="{{ values.current_net_worth }}" placeholder="e.g. 20000">
+      </div>
+      <div>
+        <input type="number" step="any" min="0.01" inputmode="decimal"
+          id="annual_income" name="annual_income"
+          value="{{ values.annual_income }}" placeholder="e.g. 500000" required>
+      </div>
+      <div>
+        <input type="number" step="any" min="0" inputmode="decimal"
+          id="monthly_savings" name="monthly_savings"
+          value="{{ values.monthly_savings }}" placeholder="e.g. 10000" required>
+      </div>
+      <button type="submit" class="calculate-btn">Calculate</button>
     </div>
+  </div>
 
-  {% else %}
-    <!-- ═══ Hero: Full FIRE / Target FIRE ═══ -->
-    {% if display.reachable %}
-      <p class="result-label">{{ display.mode_label or 'Full FIRE' }}</p>
-      <p class="big-number">{{ display.years }}<span class="unit">y</span> {{ display.months }}<span class="unit">m</span></p>
-      <p class="result-sub">{{ display.fire_date }}</p>
-      {% if display.scenarios %}
-      <div class="scenario-rows">
-        {% for s in display.scenarios %}
-        <div class="scenario-row">
-          <span class="scenario-dot" style="background:{{ s.color }}"></span>
-          <div class="scenario-info">
-            <span class="scenario-label" style="color:{{ s.color }}">{{ s.label }}</span>
-            {% if s.reachable %}
-            <span class="scenario-time" style="color:{{ s.color }}">{{ s.years }}y {{ s.months_val }}m — {{ s.fire_date }}</span>
-            <span class="scenario-goal">goal {{ s.fire_number }}</span>
-            {% else %}
-            <span class="scenario-time" style="color:{{ s.color }}">not reachable</span>
-            {% endif %}
+  <p id="stale-banner" class="stale-banner" hidden>Values changed — press Calculate to refresh results and chart.</p>
+
+  <!-- ═══ ZONE 2: Controls + Results + Chart (3 columns) ═══ -->
+  <div class="zone-body">
+
+    <!-- Column 1: controls -->
+    <div class="controls-col">
+      <div class="panel options-panel">
+
+        <!-- Mode selector: 4 distinct calculations -->
+        <p class="section-label">What do you want to calculate?</p>
+        <div class="mode-group">
+          <label class="mode-option {% if values.calc_mode == 'full_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="full_fire"
+              {% if values.calc_mode == 'full_fire' %}checked{% endif %}>
+            <span><strong>Full FIRE</strong><br><span class="mode-sub">When can I stop working entirely?</span></span>
+          </label>
+          <label class="mode-option {% if values.calc_mode == 'target_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="target_fire"
+              {% if values.calc_mode == 'target_fire' %}checked{% endif %}>
+            <span><strong>Target FIRE</strong><br><span class="mode-sub">When can I afford a specific income?</span></span>
+          </label>
+          <label class="mode-option {% if values.calc_mode == 'required_savings' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="required_savings"
+              {% if values.calc_mode == 'required_savings' %}checked{% endif %}>
+            <span><strong>Required savings</strong><br><span class="mode-sub">How much must I save monthly?</span></span>
+          </label>
+          <label class="mode-option {% if values.calc_mode == 'coast_fire' %}mode-active{% endif %}">
+            <input type="radio" name="calc_mode" value="coast_fire"
+              {% if values.calc_mode == 'coast_fire' %}checked{% endif %}>
+            <span><strong>Coast FIRE</strong><br><span class="mode-sub">When can I stop saving (but keep working)?</span></span>
+          </label>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Target monthly income — active in target_fire and required_savings -->
+        <div class="field-group mode-field" id="field-target-income">
+          <label for="desired_monthly_income">Target monthly income <span class="optional">(today's money)</span></label>
+          <input type="number" step="any" min="0" inputmode="decimal"
+            id="desired_monthly_income" name="desired_monthly_income"
+            value="{{ values.desired_monthly_income }}" placeholder="e.g. 30000">
+          <p class="hint" id="hint-target-income"></p>
+        </div>
+
+        <!-- Horizon — required_savings only -->
+        <div class="field-group mode-field" id="field-horizon">
+          <label for="savings_target_years">Horizon <span class="optional">(years)</span></label>
+          <input type="number" step="0.5" min="0.5" inputmode="decimal"
+            id="savings_target_years" name="savings_target_years"
+            value="{{ values.savings_target_years }}" placeholder="e.g. 20">
+        </div>
+
+        <!-- Ages — coast_fire only -->
+        <div class="mode-field two-col" id="field-ages">
+          <div>
+            <label for="current_age">Current age</label>
+            <input type="number" min="1" max="100" step="1"
+              id="current_age" name="current_age"
+              value="{{ values.current_age }}" placeholder="e.g. 30">
+          </div>
+          <div>
+            <label for="retirement_age">Retirement age</label>
+            <input type="number" min="1" max="100" step="1"
+              id="retirement_age" name="retirement_age"
+              value="{{ values.retirement_age }}" placeholder="e.g. 65">
           </div>
         </div>
-        {% endfor %}
+
+        <hr class="divider">
+
+        <!-- ±5 % scenarios — cross-mode checkbox -->
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="scenarios">
+            <input type="checkbox" id="scenarios" name="scenarios" {% if values.scenarios %}checked{% endif %}>
+            <strong>±5 % scenarios</strong>
+          </label>
+          <p class="hint">Shows a band: 5 pp more savings (green) or less (red).</p>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-label" for="montecarlo">
+            <input type="checkbox" id="montecarlo" name="montecarlo" {% if values.montecarlo %}checked{% endif %}>
+            <strong>Show simulated uncertainty</strong>
+          </label>
+          <p class="hint">Runs 300 random simulations (market returns vary year to year instead of staying constant) and shows the spread of outcomes as a band. Not the same as the ±5% scenarios above — this varies <em>returns</em>, not your savings rate.</p>
+        </div>
+        <div class="slider-group" id="montecarlo_fields" {% if not values.montecarlo %}hidden{% endif %}>
+          <div class="slider-label">
+            <label for="return_std_dev_pct">Annual volatility <span class="optional">(std. dev.)</span></label>
+            <output id="stddev_out">{{ values.return_std_dev_pct }}%</output>
+          </div>
+          <input type="range" id="return_std_dev_pct" name="return_std_dev_pct" min="0" max="30" step="0.5" value="{{ values.return_std_dev_pct }}" data-output="stddev_out">
+          <p class="hint">Default ~18% roughly matches historical stock market swings.</p>
+        </div>
+
+        <hr class="divider">
+        <p class="section-label">Assumptions</p>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="nominal_return_pct">Nominal annual return</label>
+            <output id="nominal_return_out">{{ values.nominal_return_pct }}%</output>
+          </div>
+          <input type="range" id="nominal_return_pct" name="nominal_return_pct" min="0" max="20" step="0.1" value="{{ values.nominal_return_pct }}" data-output="nominal_return_out">
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="inflation_pct">Inflation rate</label>
+            <output id="inflation_out">{{ values.inflation_pct }}%</output>
+          </div>
+          <input type="range" id="inflation_pct" name="inflation_pct" min="0" max="15" step="0.1" value="{{ values.inflation_pct }}" data-output="inflation_out">
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="withdrawal_rate_pct">Withdrawal rate</label>
+            <output id="withdrawal_out">{{ values.withdrawal_rate_pct }}%</output>
+          </div>
+          <input type="range" id="withdrawal_rate_pct" name="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ values.withdrawal_rate_pct }}" data-output="withdrawal_out">
+          <p class="hint">Recommended: {{ withdrawal_min }}–{{ withdrawal_max }}%</p>
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <label for="savings_growth_pct">Annual savings increase <span class="optional">(real)</span></label>
+            <output id="savings_growth_out">{{ values.savings_growth_pct }}%</output>
+          </div>
+          <input type="range" id="savings_growth_pct" name="savings_growth_pct" min="0" max="10" step="0.5" value="{{ values.savings_growth_pct }}" data-output="savings_growth_out">
+          <p class="hint">2 % = 2 % more purchasing power each year. 0 = constant.</p>
+        </div>
+
+      </div>{# end options-panel #}
+    </div>{# end controls-col #}
+
+    <!-- Column 2: results (sticky, always visible, no scrolling needed) -->
+    <div class="results-col">
+      <div id="results-area">
+        {% include 'fire_calculator/_results.html' %}
+      </div>
+    </div>
+
+    <!-- Column 3: chart -->
+    <div class="chart-col">
+      {% if chart_payload %}
+      <div class="panel chart-panel">
+        {% if chart_payload.subtitle %}
+        <p class="chart-subtitle">
+          <span class="chart-mode-badge">{{ chart_payload.subtitle.mode }}</span> {{ chart_payload.subtitle.detail }}
+        </p>
+        {% endif %}
+        <div class="chart-wrap">
+          <canvas id="projectionChart"></canvas>
+        </div>
+        <div class="chart-toolbar">
+          <span class="zoom-hint">Click and drag to zoom · </span>
+          <button type="button" id="reset-zoom-btn" class="zoom-reset-btn">↺ Reset</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="panel chart-empty">
+        <div>
+          <p style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin:0 0 0.4rem">Your projection will appear here.</p>
+          <p class="hint">Fill in your numbers above and press Calculate.</p>
+        </div>
       </div>
       {% endif %}
-    {% else %}
-      <p class="result-label">Not reachable</p>
-      <p class="result-sub unreachable">Savings and/or return too low. Try adjusting assumptions.</p>
-    {% endif %}
-  {% endif %}
+    </div>
 
-  {% if display.mode_label != 'Required Savings' %}
-  <div class="ledger-rows">
-    <div class="ledger-row"><span>Savings rate</span><span class="num">{{ display.savings_rate_pct }}%</span></div>
-    <div class="ledger-row"><span>Annual expenses</span><span class="num">{{ display.annual_expenses }}</span></div>
-    <div class="ledger-row"><span>{% if display.is_partial %}Target FIRE number{% else %}FIRE number{% endif %}</span><span class="num">{{ display.fire_number }}</span></div>
-    <div class="ledger-row"><span>Real return</span><span class="num">{{ display.real_return_pct }}%</span></div>
-    {% if display.savings_growth_active %}
-    <div class="ledger-row"><span>Savings increase</span><span class="num">{{ display.real_savings_growth_pct }}%/yr</span></div>
-    {% endif %}
-    {% if display.monthly_income_today %}
-    <div class="ledger-row"><span>Monthly withdrawal (today)</span><span class="num">{{ display.monthly_income_today }}/mo</span></div>
-    <div class="ledger-row"><span>Same amount in {{ display.fire_year }}</span><span class="num highlight">{{ display.monthly_income_nominal }}/mo</span></div>
-    {% endif %}
-    {% if display.is_partial and display.desired_monthly_income_today %}
-    <div class="ledger-row"><span>Target (today)</span><span class="num">{{ display.desired_monthly_income_today }}/mo</span></div>
-    {% if display.desired_monthly_income_future %}
-    <div class="ledger-row"><span>Target in {{ display.future_year }}</span><span class="num">{{ display.desired_monthly_income_future }}/mo</span></div>
-    {% endif %}
-    {% endif %}
-  </div>
-  {% endif %}
+  </div>{# end zone-body #}
 
-  {% if display.savings_milestones %}
-  <div class="coast-panel">
-    <p class="result-label">Savings progression ({{ values.savings_growth_pct }}% real/yr)</p>
-    <table class="milestone-table">
-      <thead><tr><th>Year</th><th>Today's money</th><th>Nominal</th></tr></thead>
-      <tbody>
-        {% for m in display.savings_milestones %}
-        <tr{% if m.is_fire_year %} class="fire-row"{% endif %}>
-          <td>{{ m.year }}</td><td class="num">{{ m.real }}/mo</td><td class="num highlight">{{ m.nominal }}/mo</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
+</form>
 
-  {% if display.milestones %}
-  <div class="coast-panel">
-    <p class="result-label">Milestones on the way</p>
-    <div class="ledger-rows">
-      {% for m in display.milestones %}
-      <div class="ledger-row">
-        <span>{{ m.pct }} % ({{ m.amount }})</span>
-        <span class="num">{{ m.date }}</span>
+<!-- ═══ ZONE 3: Reference table (full width, outside form) ═══ -->
+{% if reference_table %}
+<section class="panel reference">
+  <p class="section-label">For comparison: years to full FIRE by savings rate</p>
+  <p class="hint" style="margin-bottom:0.5rem">At your current assumptions (return {{ values.nominal_return_pct }}%, inflation {{ values.inflation_pct }}%, withdrawal {{ values.withdrawal_rate_pct }}%), starting from zero.</p>
+
+  <div class="rate-explorer">
+    <div class="rate-explorer-slider">
+      <div class="slider-label">
+        <label for="explore_rate_pct">Explore a specific rate</label>
+        <output id="explore_rate_out">25%</output>
       </div>
-      {% endfor %}
+      <input type="range" id="explore_rate_pct" min="10" max="90" step="1" value="25" data-output="explore_rate_out">
+    </div>
+    <div class="rate-explorer-readout">
+      <span id="explore_years_out" class="rate-explorer-years">—</span>
+      <span class="hint">to FI at this rate, with your current assumptions above</span>
     </div>
   </div>
-  {% endif %}
-</div>
+
+  <table class="reference-table">
+    <thead><tr>{% for row in reference_table %}<th>{{ row.savings_rate_pct }}%</th>{% endfor %}</tr></thead>
+    <tbody><tr id="reference-table-row">{% for row in reference_table %}<td data-rate="{{ row.savings_rate_pct }}">{{ row.years_display }}</td>{% endfor %}</tr></tbody>
+  </table>
+  <p class="hint" style="margin-top:0.4rem">Updates live as you move the sliders above — no need to press Calculate.</p>
+</section>
 {% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script>
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.elements.point.radius = 0;
+  Chart.defaults.elements.point.hoverRadius = 0;
+  Chart.defaults.elements.point.hitRadius = 6;
+}
+</script>
+
+<script>
+// ── Slider live labels ──────────────────────────────────────────
+document.querySelectorAll('input[type="range"]').forEach(function(s) {
+  var o = document.getElementById(s.dataset.output);
+  var sync = function(){ o.textContent = parseFloat(s.value).toFixed(s.step < 1 ? 1 : 0) + '%'; };
+  s.addEventListener('input', sync); sync();
+});
+
+// ── Mode switching ──────────────────────────────────────────────
+function applyMode(mode) {
+  var msInput      = document.getElementById('monthly_savings');
+  var targetGroup  = document.getElementById('field-target-income');
+  var horizonGroup = document.getElementById('field-horizon');
+  var agesGroup    = document.getElementById('field-ages');
+  var hintTarget   = document.getElementById('hint-target-income');
+  var scenariosCb  = document.getElementById('scenarios');
+  var scenariosGroup = scenariosCb ? scenariosCb.closest('.checkbox-group') : null;
+  var incomeTag    = document.getElementById('income-optional-tag');
+  var msTag        = document.getElementById('ms-optional-tag');
+
+  // Enable everything first (null-safe throughout)
+  [targetGroup, horizonGroup, agesGroup, scenariosGroup].forEach(function(g){
+    if (g) g.classList.remove('field-disabled');
+  });
+  ['desired_monthly_income','savings_target_years','current_age','retirement_age'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.disabled = false;
+  });
+  if (msInput) msInput.readOnly = false;
+  if (scenariosCb) scenariosCb.disabled = false;
+  if (incomeTag) incomeTag.hidden = true;
+  if (msTag) msTag.hidden = true;
+
+  function grey(group, inputIds) {
+    if (group) group.classList.add('field-disabled');
+    (inputIds || []).forEach(function(id){
+      var el = document.getElementById(id); if (el) el.disabled = true;
+    });
+  }
+
+  if (mode === 'full_fire') {
+    if (hintTarget) hintTarget.textContent = '';
+    grey(targetGroup, ['desired_monthly_income']);
+    grey(horizonGroup, ['savings_target_years']);
+    grey(agesGroup, ['current_age','retirement_age']);
+
+  } else if (mode === 'target_fire') {
+    if (hintTarget) hintTarget.textContent = 'Required — the sustainable monthly income you want.';
+    grey(horizonGroup, ['savings_target_years']);
+    grey(agesGroup, ['current_age','retirement_age']);
+
+  } else if (mode === 'required_savings') {
+    if (hintTarget) hintTarget.textContent = 'Required — your desired retirement income.';
+    if (msInput) msInput.readOnly = true;   // output, not input, in this mode
+    grey(agesGroup, ['current_age','retirement_age']);
+    grey(scenariosGroup, []);
+    if (scenariosCb) scenariosCb.disabled = true;
+    if (incomeTag) incomeTag.hidden = false;
+    if (msTag) msTag.hidden = false;
+
+  } else if (mode === 'coast_fire') {
+    if (hintTarget) hintTarget.textContent = '';
+    grey(targetGroup, ['desired_monthly_income']);
+    grey(horizonGroup, ['savings_target_years']);
+  }
+
+  document.querySelectorAll('.mode-option').forEach(function(el){
+    var input = el.querySelector('input');
+    if (input) el.classList.toggle('mode-active', input.value === mode);
+  });
+}
+
+var _initMode = document.querySelector('input[name="calc_mode"]:checked');
+if (_initMode) applyMode(_initMode.value);
+// Change listener attached later (delayed, with markStale instead of auto-recalc)
+
+// ── Savings rate explorer (Zone 3) — pure client-side, instant feedback ──
+// Same formula as savings_rate_explorer.py's months_to_fire_at_rate():
+// income is normalised to 1 unit, so only the savings RATE matters.
+(function() {
+  var rateSlider = document.getElementById('explore_rate_pct');
+  var rateOut = document.getElementById('explore_rate_out');
+  var yearsOut = document.getElementById('explore_years_out');
+  if (!rateSlider || !yearsOut) return;
+
+  function realReturnPct(nominalPct, inflationPct) {
+    var nominal = nominalPct / 100, inflation = inflationPct / 100;
+    return ((1 + nominal) / (1 + inflation) - 1) * 100;
+  }
+
+  function monthsToFireAtRate(ratePct, nominalReturnPct, inflationPct, withdrawalRatePct) {
+    if (ratePct <= 0 || withdrawalRatePct <= 0) return null;
+    var rate = ratePct / 100;
+    var annualExpenses = 1 - rate;
+    var target = annualExpenses / (withdrawalRatePct / 100);
+    var monthlyContribution = rate / 12;
+    var annualRealReturn = realReturnPct(nominalReturnPct, inflationPct) / 100;
+    var monthlyRate = Math.pow(1 + annualRealReturn, 1 / 12) - 1;
+    if (Math.abs(monthlyRate) < 1e-12) return target / monthlyContribution;
+    var numerator = target * monthlyRate / monthlyContribution + 1;
+    if (numerator <= 0) return null;
+    return Math.log(numerator) / Math.log(1 + monthlyRate);
+  }
+
+  function formatYears(months) {
+    // Match the server's "%.1f" style used in the static table (e.g. "32.0")
+    return (months / 12).toFixed(1);
+  }
+
+  function refresh() {
+    var ratePct = parseFloat(rateSlider.value);
+    var nominal = parseFloat(document.getElementById('nominal_return_pct').value);
+    var inflation = parseFloat(document.getElementById('inflation_pct').value);
+    var withdrawal = parseFloat(document.getElementById('withdrawal_rate_pct').value);
+
+    if (rateOut) rateOut.textContent = ratePct + '%';
+
+    var months = monthsToFireAtRate(ratePct, nominal, inflation, withdrawal);
+    if (months === null) {
+      yearsOut.textContent = 'not reachable';
+    } else {
+      var years = Math.floor(months / 12);
+      var rem = Math.round(months - years * 12);
+      if (rem === 12) { years += 1; rem = 0; }
+      yearsOut.textContent = years + 'y ' + rem + 'm';
+    }
+
+    // Keep the static reference table below in sync too — otherwise it
+    // shows stale numbers from the last Calculate click while this
+    // slider (and the assumption sliders) already moved on.
+    document.querySelectorAll('#reference-table-row td[data-rate]').forEach(function(cell) {
+      var rate = parseFloat(cell.dataset.rate);
+      var m = monthsToFireAtRate(rate, nominal, inflation, withdrawal);
+      cell.textContent = m === null ? 'not reachable' : formatYears(m);
+    });
+  }
+
+  rateSlider.addEventListener('input', refresh);
+  // Also refresh whenever any assumption slider changes, so this stays in
+  // sync without needing a server round-trip.
+  ['nominal_return_pct', 'inflation_pct', 'withdrawal_rate_pct'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', refresh);
+  });
+
+  refresh();
+})();
+
+// ── Chart helpers (shared by initial render + live update) ──────
+var NOW = Date.now();
+var THREE_MONTHS = 90 * 86400 * 1000;
+var moneyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+function yFmt(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(v % 1e6 === 0 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (v >= 1e3) return Math.round(v/1e3) + 'k';
+  return v;
+}
+function dateFmt(ms) {
+  return new Date(ms).toLocaleDateString('en-US', { year:'numeric', month:'short' });
+}
+
+function buildDatasets(payload) {
+  var ds = [];
+
+  // History
+  if (payload.history && payload.history.length) {
+    ds.push({ label:'Recorded history', data:payload.history,
+      borderColor:'#2F6F52', backgroundColor:'#2F6F52',
+      pointRadius:3, pointHoverRadius:5, borderWidth:2, tension:0, fill:false, order:4 });
+  }
+
+  // Scenario band (fill between +1% and -1%)
+  if (payload.scenarios && payload.scenarios.length === 2) {
+    var sp = payload.scenarios[0]; // +1%
+    var sm = payload.scenarios[1]; // -1%
+    ds.push({ label:sp.label, data:sp.projection,
+      borderColor:'rgba(47,111,82,0.65)', borderWidth:1.5,
+      pointRadius:0, tension:0.25, fill:'+1',
+      backgroundColor:'rgba(47,111,82,0.08)', order:3 });
+    ds.push({ label:sm.label, data:sm.projection,
+      borderColor:'rgba(179,64,47,0.65)', borderWidth:1.5,
+      pointRadius:0, tension:0.25, fill:false, order:3 });
+  }
+
+  // Monte Carlo uncertainty band (10th-90th and 25th-75th percentile,
+  // fill-between pairs same technique as the scenario band above).
+  // Blue-ish tint (vs. the scenario band's green) so the two don't read
+  // as the same kind of thing when both are shown at once.
+  if (payload.montecarlo) {
+    var mc = payload.montecarlo;
+    // Outer band: 10th-90th percentile
+    ds.push({ label:'10th–90th percentile (simulated)', data:mc['90'],
+      borderColor:'rgba(59,110,165,0.25)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:'+1',
+      backgroundColor:'rgba(59,110,165,0.08)', order:6 });
+    ds.push({ label:'__mc10', data:mc['10'],
+      borderColor:'rgba(59,110,165,0.25)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:false, order:6 });
+    // Inner band: 25th-75th percentile
+    ds.push({ label:'25th–75th percentile (simulated)', data:mc['75'],
+      borderColor:'rgba(59,110,165,0.4)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:'+1',
+      backgroundColor:'rgba(59,110,165,0.16)', order:6 });
+    ds.push({ label:'__mc25', data:mc['25'],
+      borderColor:'rgba(59,110,165,0.4)', borderWidth:1,
+      pointRadius:0, tension:0.2, fill:false, order:6 });
+  }
+
+  // Main projection
+  ds.push({ label:'Projected net worth', data:payload.projection,
+    borderColor:'#3B6EA5', borderWidth:3,
+    pointRadius:0, tension:0.25, fill:false, order:2 });
+
+  // FIRE target line (or, in Required Savings mode, the desired-income goal)
+  ds.push({ label: payload.targetLabel || 'FIRE target', data:payload.target,
+    borderColor:'rgba(179,64,47,0.55)', borderDash:[8,5], borderWidth:1.5,
+    pointRadius:0, tension:0, fill:false, order:5 });
+
+  // Coast target
+  if (payload.coastTarget && payload.coastTarget.length) {
+    ds.push({ label:'Coast FIRE', data:payload.coastTarget,
+      borderColor:'rgba(192,122,32,0.55)', borderDash:[5,4], borderWidth:1.5,
+      pointRadius:0, tension:0, fill:false, order:5 });
+  }
+
+  // Milestone lines: 25 / 50 / 75 % of target — very subtle dashed lines
+  if (payload.milestones && payload.xMax) {
+    var msStart = NOW - THREE_MONTHS;
+    payload.milestones.forEach(function(m) {
+      ds.push({ label:'__ms' + m.pct, data:[{x:msStart, y:m.y}, {x:payload.xMax, y:m.y}],
+        borderColor:'rgba(27,43,39,0.13)', borderDash:[2,6], borderWidth:1,
+        pointRadius:0, tension:0, fill:false, order:6 });
+    });
+  }
+
+  // Markers
+  function mkr(d, color, size) {
+    return { label:'__m', data:[d], borderColor:color, backgroundColor:color,
+      pointRadius: size || 5, pointHoverRadius: (size || 5) + 2,
+      pointStyle:'circle', showLine:false, order:1 };
+  }
+  if (payload.marker) ds.push(mkr(payload.marker, '#B3402F', 6));
+  if (payload.coastMarker) ds.push(mkr(payload.coastMarker, '#C07A20', 5));
+  // Scenario crossing markers — small, same colour as their line
+  if (payload.scenarios) {
+    var sc_colors = ['#2F6F52', '#B3402F'];
+    payload.scenarios.forEach(function(s, i) {
+      if (s.marker) ds.push(mkr(s.marker, sc_colors[i], 4));
+    });
+  }
+
+  return ds;
+}
+
+function chartOptions(payload) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    interaction: { mode:'index', intersect:false },
+    plugins: {
+      legend: {
+        position:'bottom',
+        labels: {
+          boxWidth:12, padding:10,
+          font:{ family:'"IBM Plex Mono"', size:11 },
+          filter: function(i){ return i.text.indexOf('__m') !== 0 && i.text !== 'Projected net worth'; }
+        }
+      },
+      tooltip: {
+        backgroundColor:'rgba(255,255,255,0.97)',
+        borderColor:'#DCE3DA', borderWidth:1,
+        titleColor:'#1B2B27', bodyColor:'#6E7A73',
+        titleFont:{ family:'"IBM Plex Mono"', size:11, weight:'600' },
+        bodyFont:{ family:'"IBM Plex Mono"', size:11 },
+        padding:10,
+        callbacks: {
+          title: function(items){
+            var t = dateFmt(items[0].parsed.x);
+            if (payload.currentAge != null && payload.asOfMs != null) {
+              var yrs = (items[0].parsed.x - payload.asOfMs) / (365.25 * 86400 * 1000);
+              t += ' \u00b7 age ' + Math.floor(payload.currentAge + yrs);
+            }
+            return t;
+          },
+          label: function(item){
+            var lbl = item.dataset.label;
+            var targetLbl = payload.targetLabel || 'FIRE target';
+            if (lbl === targetLbl || lbl === 'Coast FIRE' || lbl.indexOf('__ms') === 0 || lbl.indexOf('__mc') === 0) return null;
+            if (lbl === '__m') {
+              // Crossing marker — show it in tooltip with its label property
+              return item.dataset.data[0] && item.dataset.data[0].label
+                ? item.dataset.data[0].label : null;
+            }
+            var v = item.parsed.y;
+            if (lbl === 'Projected net worth' || lbl === 'Recorded history') {
+              var lines = [(lbl === 'Recorded history' ? 'Saved (recorded)' : 'Projected') + ': ' + moneyFmt.format(v)];
+              lines.push('To goal: ' + moneyFmt.format(Math.max(payload.fireNumber - v, 0)));
+              if (payload.coastFireNumber) lines.push('To Coast: ' + moneyFmt.format(Math.max(payload.coastFireNumber - v, 0)));
+              return lines;
+            }
+            return lbl + ': ' + moneyFmt.format(v);
+          }
+        }
+      },
+      zoom: {
+        zoom: {
+          drag: {
+            enabled: true,
+            borderColor: 'rgba(59,110,165,0.7)',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(59,110,165,0.08)',
+            threshold: 5,
+          },
+          mode: 'xy',
+        }
+        // No wheel zoom, no pan — only drag to avoid automatic zooming bugs
+      }
+    },
+    scales: {
+      x: {
+        type:'linear',
+        min: NOW - THREE_MONTHS,
+        max: payload.xMax || undefined,
+        ticks: {
+          callback: function(v){ return dateFmt(v); },
+          maxRotation:0, maxTicksLimit:7,
+          font:{ family:'"IBM Plex Mono"', size:10 }, color:'#6E7A73'
+        },
+        grid:{ color:'rgba(220,227,218,0.6)' }, border:{ display:false }
+      },
+      y: {
+        min: (payload.yMin != null) ? payload.yMin : undefined,
+        max: (payload.yMax != null) ? payload.yMax : undefined,
+        ticks: {
+          callback: function(v){ return yFmt(v); },
+          maxTicksLimit:6,
+          font:{ family:'"IBM Plex Mono"', size:10 }, color:'#6E7A73'
+        },
+        grid:{ color:'rgba(220,227,218,0.6)' }, border:{ display:false }
+      }
+    }
+  };
+}
+
+// ── Initial chart render ────────────────────────────────────────
+{% if chart_payload %}
+(function(){
+  var canvas = document.getElementById('projectionChart');
+  if (typeof Chart === 'undefined') {
+    canvas.replaceWith(Object.assign(document.createElement('p'), {
+      className:'hint', style:'text-align:center;padding:3rem 0',
+      textContent:'Chart requires internet access (Chart.js).'
+    })); return;
+  }
+
+  var payload = {{ chart_payload | tojson }};
+  window.fireChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: buildDatasets(payload) },
+    options: chartOptions(payload)
+  });
+
+  // Reset zoom — plugin handles the drag-select zoom itself
+  var resetBtn = document.getElementById('reset-zoom-btn');
+  if (resetBtn) resetBtn.addEventListener('click', function() {
+    window.fireChart.resetZoom();
+  });
+})();
+{% endif %}
+
+// ── Live update (AJAX, no page reload) ─────────────────────────
+var _liveTimer = null;
+var _liveRunning = false;
+var _preserveZoomOnce = false;
+var _hasResults = {{ 'true' if chart_payload else 'false' }};
+
+function scheduleLiveUpdate(delay) {
+  if (!_hasResults) return; // only live-update after first Calculate
+  clearTimeout(_liveTimer);
+  _liveTimer = setTimeout(doLiveUpdate, delay || 400);
+}
+
+function doLiveUpdate() {
+  if (_liveRunning) return;
+  _liveRunning = true;
+
+  var form = document.getElementById('fc-form');
+  var data = new FormData(form);
+
+  fetch('?json=1', { method:'POST', body:data })
+  .then(function(r){ return r.json(); })
+  .then(function(resp) {
+    clearStale();
+    // Update results panel
+    var area = document.getElementById('results-area');
+    if (area) area.innerHTML = resp.results_html || '';
+
+    // Update chart
+    if (resp.chart_payload) {
+      var payload = resp.chart_payload;
+
+      // Update badge/subtitle above chart (outside #results-area so not auto-replaced)
+      if (payload.subtitle) {
+        var subtitleEl = document.querySelector('.chart-subtitle');
+        if (subtitleEl) subtitleEl.innerHTML =
+          '<span class="chart-mode-badge">' + payload.subtitle.mode + '</span> ' + payload.subtitle.detail;
+      }
+
+      if (window.fireChart) {
+        var keepView = _preserveZoomOnce;
+        _preserveZoomOnce = false;
+        if (!keepView) {
+          try { window.fireChart.resetZoom(); } catch(e) {}
+          window.fireChart.options.scales.x.min = NOW - THREE_MONTHS;
+          if (payload.xMax) window.fireChart.options.scales.x.max = payload.xMax;
+          window.fireChart.options.scales.y.min = (payload.yMin != null) ? payload.yMin : undefined;
+          window.fireChart.options.scales.y.max = (payload.yMax != null) ? payload.yMax : undefined;
+        }
+        window.fireChart.data.datasets = buildDatasets(payload);
+        window.fireChart.update('none');
+      } else {
+        // Chart didn't exist yet — build it now
+        var canvas = document.getElementById('projectionChart');
+        if (canvas && typeof Chart !== 'undefined') {
+          window.fireChart = new Chart(canvas.getContext('2d'), {
+            type:'line', data:{ datasets:buildDatasets(payload) }, options:chartOptions(payload)
+          });
+          var empty = document.querySelector('.chart-empty');
+          if (empty) empty.style.display = 'none';
+        }
+      }
+    }
+  })
+  .catch(function(e){ console.warn('Live update failed:', e); })
+  .finally(function(){ _liveRunning = false; });
+}
+
+// ── Stale indicator: shown when user changes something that requires
+// pressing Calculate (numeric inputs, mode switch) so results/chart
+// don't silently go out of sync with what's displayed.
+function markStale() {
+  var rc = document.querySelector('.results-col');
+  var cc = document.querySelector('.chart-panel');
+  var banner = document.getElementById('stale-banner');
+  if (rc) rc.classList.add('stale');
+  if (cc) cc.classList.add('stale');
+  if (banner) banner.hidden = false;
+}
+function clearStale() {
+  var rc = document.querySelector('.results-col');
+  var cc = document.querySelector('.chart-panel');
+  var banner = document.getElementById('stale-banner');
+  if (rc) rc.classList.remove('stale');
+  if (cc) cc.classList.remove('stale');
+  if (banner) banner.hidden = true;
+}
+
+// Attach live-update listeners — delayed 500ms to avoid firing on page load
+// (browser may fire change/blur events when auto-filling form fields)
+setTimeout(function() {
+  // Sliders: live-update immediately — this is the only input type where
+  // seeing the chart react in real time is genuinely useful (b: only sliders).
+  document.querySelectorAll('#fc-form input[type="range"]').forEach(function(s){
+    s.addEventListener('input', function(){ scheduleLiveUpdate(300); });
+  });
+
+  // Scenario / Monte Carlo checkboxes: live-update too (view preserved).
+  document.querySelectorAll('#fc-form input[type="checkbox"]').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      if (cb.id === 'scenarios' || cb.id === 'montecarlo') _preserveZoomOnce = true;
+      scheduleLiveUpdate(150);
+    });
+  });
+
+  var montecarloCb = document.getElementById('montecarlo');
+  var montecarloFields = document.getElementById('montecarlo_fields');
+  if (montecarloCb && montecarloFields) {
+    montecarloCb.addEventListener('change', function(){
+      montecarloFields.hidden = !montecarloCb.checked;
+    });
+  }
+
+  // Numeric inputs: do NOT auto-recalculate (avoids premature validation
+  // errors while the user is still typing). Just mark results as stale —
+  // press Calculate to apply. (b: numeric inputs require explicit Calculate)
+  document.querySelectorAll('#fc-form input[type="number"]').forEach(function(n){
+    n.addEventListener('input', function(){ if (_hasResults) markStale(); });
+  });
+
+  // Mode radio: same — only update field graying locally, mark stale,
+  // wait for explicit Calculate (b: no premature error banner on mode switch)
+  document.querySelectorAll('input[name="calc_mode"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      applyMode(r.value);
+      if (_hasResults) markStale();
+    });
+  });
+}, 500);
+
+// File upload → full reload
+var fileInput = document.getElementById('savings_diary');
+if (fileInput) fileInput.addEventListener('change', function(){
+  document.getElementById('fc-form').submit();
+});
+
+// After first successful Calculate → enable live updates
+document.getElementById('fc-form').addEventListener('submit', function(){
+  _hasResults = true;
+});
+</script>
+</body>
+</html>
