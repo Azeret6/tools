@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Child Savings Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('child_savings_calculator.static', filename='style.css') }}">
+</head>
+<body>
+
+{% if hub_tools %}
+<nav class="tool-nav">
+  <a href="/" class="tool-nav-link">&larr; All tools</a>
+  {% for t in hub_tools %}
+  <a href="{{ t.prefix }}/" class="tool-nav-link{{ ' active' if t.folder == hub_active else '' }}">{{ t.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<div class="sheet">
+
+  <header class="masthead">
+    <p class="eyebrow">saving for a child</p>
+    <h1>Child Savings Calculator</h1>
+    <p class="dek">Set a monthly contribution and a horizon (in years, or by the child's age). Compares keeping the contribution flat against raising it every year with inflation.</p>
+  </header>
+
+  <div class="layout">
+
+    <form id="calc-form" class="ledger">
+
+      <div class="field">
+        <label for="monthly_contribution">Monthly contribution</label>
+        <div class="input-with-unit">
+          <input type="number" id="monthly_contribution" name="monthly_contribution"
+                 value="{{ defaults.monthly_contribution }}" min="0" step="100">
+          <span class="unit">/ month, today's money</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="starting_balance">Already saved for the child <span class="optional">(optional)</span></label>
+        <div class="input-with-unit">
+          <input type="number" id="starting_balance" name="starting_balance"
+                 value="{{ defaults.starting_balance }}" min="0" step="1000">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Savings horizon</label>
+        <div class="toggle-tabs">
+          <div class="toggle-tab active" id="tab-years" data-mode="years">Number of years</div>
+          <div class="toggle-tab" id="tab-age" data-mode="age">Child's age</div>
+        </div>
+
+        <div id="years-fields">
+          <div class="slider-field" style="margin-bottom:0;">
+            <label for="years_slider" style="margin-bottom:0.4rem;">
+              <span></span>
+              <span class="live-value"><span id="years_display">{{ defaults.years }}</span> years</span>
+            </label>
+            <input type="range" id="years_slider" min="1" max="25" step="1" value="{{ defaults.years }}">
+          </div>
+        </div>
+
+        <div id="age-fields" class="age-fields" hidden>
+          <div class="field-narrow">
+            <label for="current_age_years">Child's current age</label>
+            <input type="number" id="current_age_years" min="0" max="25" step="1" value="{{ defaults.current_age_years }}">
+          </div>
+          <div class="field-narrow">
+            <label for="current_age_months">...and months</label>
+            <input type="number" id="current_age_months" min="0" max="11" step="1" value="{{ defaults.current_age_months }}">
+          </div>
+          <div class="field-narrow age-fields-row" style="grid-column:1 / -1;">
+            <label for="end_age_years">Savings end age</label>
+            <input type="number" id="end_age_years" min="0.5" max="30" step="0.5" value="{{ defaults.end_age_years }}">
+          </div>
+        </div>
+
+        <p class="horizon-summary">Horizon: <strong id="horizon_summary">{{ defaults.years }}y 0m</strong></p>
+      </div>
+
+      <div class="field slider-field">
+        <label for="nominal_return_pct">
+          Expected nominal annual return
+          <span class="live-value"><span id="nominal_return_display">{{ defaults.nominal_return_pct }}</span>%</span>
+        </label>
+        <input type="range" id="nominal_return_pct" min="0" max="20" step="0.1" value="{{ defaults.nominal_return_pct }}">
+      </div>
+
+      <div class="field slider-field">
+        <label for="inflation_pct">
+          Expected annual inflation
+          <span class="live-value"><span id="inflation_display">{{ defaults.inflation_pct }}</span>%</span>
+        </label>
+        <input type="range" id="inflation_pct" min="0" max="15" step="0.1" value="{{ defaults.inflation_pct }}">
+      </div>
+
+      <div class="field slider-field">
+        <label for="withdrawal_rate_pct">
+          Withdrawal rate <span class="optional">(for the theoretical monthly income figure)</span>
+          <span class="live-value"><span id="withdrawal_display">{{ defaults.withdrawal_rate_pct }}</span>%</span>
+        </label>
+        <input type="range" id="withdrawal_rate_pct" min="1" max="8" step="0.1" value="{{ defaults.withdrawal_rate_pct }}">
+      </div>
+
+      <button type="submit" class="calculate-btn">Calculate</button>
+      <p id="form-error" class="form-error" hidden></p>
+    </form>
+
+    <div class="results">
+
+      <div class="chart-card">
+        <canvas id="projection_chart" height="260"></canvas>
+        <p id="chart-fallback" class="chart-fallback" hidden>
+          Chart.js could not be loaded, so the chart isn't available right now - the numbers below are still accurate.
+        </p>
+      </div>
+
+      <div class="compare-card">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="col-flat">Flat</th>
+              <th class="col-rising">Rising with inflation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="headline">
+              <td>Final balance</td>
+              <td class="col-flat" id="flat_final_balance">-</td>
+              <td class="col-rising" id="rising_final_balance">-</td>
+            </tr>
+            <tr>
+              <td>...worth in today's money</td>
+              <td class="col-flat" id="flat_final_balance_today">-</td>
+              <td class="col-rising" id="rising_final_balance_today">-</td>
+            </tr>
+            <tr class="section-gap"><td colspan="3"></td></tr>
+            <tr>
+              <td>Total contributed</td>
+              <td class="col-flat" id="flat_total_contributed">-</td>
+              <td class="col-rising" id="rising_total_contributed">-</td>
+            </tr>
+            <tr>
+              <td>From investment growth</td>
+              <td class="col-flat" id="flat_total_growth">-</td>
+              <td class="col-rising" id="rising_total_growth">-</td>
+            </tr>
+            <tr>
+              <td>Contribution at the end<span class="sub">only differs for "rising"</span></td>
+              <td class="col-flat" id="flat_final_contribution">-</td>
+              <td class="col-rising" id="rising_final_contribution">-</td>
+            </tr>
+            <tr class="section-gap"><td colspan="3"></td></tr>
+            <tr>
+              <td>Theoretical monthly income<span class="sub">at the withdrawal rate above</span></td>
+              <td class="col-flat" id="flat_monthly_income">-</td>
+              <td class="col-rising" id="rising_monthly_income">-</td>
+            </tr>
+            <tr>
+              <td>...worth in today's money</td>
+              <td class="col-flat" id="flat_monthly_income_today">-</td>
+              <td class="col-rising" id="rising_monthly_income_today">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+<script src="{{ url_for('child_savings_calculator.static', filename='script.js') }}"></script>
+</body>
+</html>
