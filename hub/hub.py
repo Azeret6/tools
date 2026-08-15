@@ -90,6 +90,12 @@ TOOLS = [
         "title": "Monte Carlo Simulator",
         "description": "Thousands of randomly simulated futures — a probability fan chart, not just one number. Complements Historical Backtest.",
     },
+    {
+        "folder": "child_savings_calculator",
+        "prefix": "/child-savings",
+        "title": "Child Savings Calculator",
+        "description": "What a monthly contribution could grow into by a chosen age — flat vs. rising with inflation, side by side.",
+    },
 ]
 
 
